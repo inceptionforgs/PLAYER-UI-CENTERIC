@@ -4,15 +4,11 @@
 // (Walkman Orange: 12, Deep Black/cyber: 0 — sharp square, Apple
 // Green/silver-chrome: 8).
 //
-// FIXED (Batch 3 audit): was a hardcoded 230x230 regardless of screen
-// size — the single biggest contributor to Now Playing's small-screen
-// overflow. AppDimensions.albumArtSize now acts as a *maximum*; on
-// screens narrower than that it shrinks to fit instead of forcing the
-// fixed size no matter what.
+// Now Playing album is 331 max (original 230, +25% then +15%).
+// On narrow screens it still shrinks so width never overflows.
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../core/constants/app_dimensions.dart';
 import '../../../core/constants/app_themes.dart';
 import '../../../models/song.dart';
 import '../../../services/app_cache_manager.dart';
@@ -22,6 +18,8 @@ class AlbumArt extends StatelessWidget {
   final AppThemeData t;
 
   const AlbumArt({Key? key, required this.song, required this.t}) : super(key: key);
+
+  static const double maxArtSize = 331;
 
   static double _radius(AppThemeId id) {
     switch (id) {
@@ -37,24 +35,14 @@ class AlbumArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = _radius(t.id);
-
-    // FIXED: responsive size instead of a hardcoded 230. Caps at
-    // AppDimensions.albumArtSize on normal/large screens, but shrinks on
-    // narrow ones (small Android phones, iPhone SE) so it — plus the
-    // horizontal margins around it — never forces the Now Playing column
-    // past the available height.
     final screenWidth = MediaQuery.of(context).size.width;
-    final size = screenWidth < AppDimensions.albumArtSize + 90
-        ? screenWidth - 90
-        : AppDimensions.albumArtSize;
+    final size = (screenWidth - 48).clamp(160.0, maxArtSize);
 
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        // Theme-derived gradient (fixed in File 42) instead of a hardcoded
-        // pair of colors that never changed with the active theme.
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -95,5 +83,3 @@ class AlbumArt extends StatelessWidget {
     );
   }
 }
-
-
