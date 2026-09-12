@@ -1,0 +1,77 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace "com.mewatitune.player"
+    compileSdk = 36
+    ndkVersion = "28.2.13676358"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        applicationId "com.mewatitune.player"
+        minSdk = 21
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            def keystorePropertiesFile = rootProject.file("key.properties")
+            def hasKeystore = keystorePropertiesFile.exists()
+            if (hasKeystore) {
+                def keystoreProperties = new Properties()
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            def hasKeystore = rootProject.file("key.properties").exists()
+            def ciDebugSign = project.hasProperty('ciDebugSign')
+            if (hasKeystore) {
+                signingConfig signingConfigs.release
+            } else if (ciDebugSign) {
+                signingConfig signingConfigs.debug
+                println "WARNING: release APK is DEBUG-signed (ciDebugSign). Not for Play Store."
+            } else {
+                throw new GradleException(
+                    "Release build needs android/key.properties. For CI/sideload: -PciDebugSign=true"
+                )
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    def exoplayer_version = "1.4.1"
+    implementation "androidx.media3:media3-exoplayer:$exoplayer_version"
+    implementation "androidx.media3:media3-common:$exoplayer_version"
+}

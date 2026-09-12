@@ -1,0 +1,154 @@
+package com.mewatitune.player
+
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.media.MediaActionSound
+import android.os.Build
+import com.ryanheise.audioservice.AudioServiceActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
+
+class MainActivity : AudioServiceActivity() {
+    private var volumeEvents: EventChannel.EventSink? = null
+    private var receiver: BroadcastReceiver? = null
+    private var lastAppWriteIndex: Int = -1
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(SoftwareEqEngine())
+
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mewati.sound/volume")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "get" -> result.success(systemVolume(am))
+                    "max" -> result.success(
+                        am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1),
+                    )
+                    "locked" -> result.success(keyguardLocked())
+                    "headset" -> result.success(isHeadsetOrBluetooth(am))
+                    "set" -> {
+                        if (keyguardLocked()) {
+                            result.success(systemVolume(am))
+                        } else {
+                            val args = call.arguments
+                            var value = 0.0
+                            var silent = true
+                            when (args) {
+                                is Number -> value = args.toDouble()
+                                is Map<*, *> -> {
+                                    value = (args["value"] as? Number)?.toDouble() ?: 0.0
+                                    silent = args["silent"] as? Boolean ?: true
+                                }
+                            }
+                            val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            val idx = (value.coerceIn(0.0, 1.0) * max).toInt()
+                            lastAppWriteIndex = idx
+                            val flags = if (silent) 0 else AudioManager.FLAG_SHOW_UI
+                            am.setStreamVolume(AudioManager.STREAM_MUSIC, idx, flags)
+                            result.success(systemVolume(am))
+                        }
+                    }
+                    "playShutter" -> {
+                        try {
+                            MediaActionSound().play(MediaActionSound.SHUTTER_CLICK)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "mewati.sound/volumeEvents")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    volumeEvents = events
+                    if (receiver == null) {
+                        receiver = object : BroadcastReceiver() {
+                            override fun onReceive(context: Context?, intent: Intent?) {
+                                if (intent?.action != "android.media.VOLUME_CHANGED_ACTION") return
+                                val type = intent.getIntExtra(
+                                    "android.media.EXTRA_VOLUME_STREAM_TYPE",
+                                    -1,
+                                )
+                                if (type != -1 && type != AudioManager.STREAM_MUSIC) return
+                                val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                val fromApp = lastAppWriteIndex >= 0 && cur == lastAppWriteIndex
+                                if (fromApp) {
+                                    lastAppWriteIndex = -1
+                                }
+                                volumeEvents?.success(
+                                    hashMapOf(
+                                        "value" to systemVolume(am),
+                                        "fromApp" to fromApp,
+                                    ),
+                                )
+                            }
+                        }
+                        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            registerReceiver(receiver, filter)
+                        }
+                    }
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    volumeEvents = null
+                    receiver?.let {
+                        try {
+                            unregisterReceiver(it)
+                        } catch (_: Exception) {
+                        }
+                    }
+                    receiver = null
+                }
+            })
+    }
+
+    private fun keyguardLocked(): Boolean {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        return km.isKeyguardLocked()
+    }
+
+    private fun isHeadsetOrBluetooth(am: AudioManager): Boolean {
+        @Suppress("DEPRECATION")
+        if (am.isBluetoothA2dpOn || am.isWiredHeadsetOn || am.isBluetoothScoOn) {
+            return true
+        }
+        val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        for (d in devices) {
+            when (d.type) {
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                AudioDeviceInfo.TYPE_HEARING_AID -> return true
+            }
+            if (Build.VERSION.SDK_INT >= 31) {
+                if (d.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                    d.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                ) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun systemVolume(am: AudioManager): Double {
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return am.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max
+    }
+}

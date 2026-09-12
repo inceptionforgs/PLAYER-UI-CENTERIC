@@ -1,0 +1,5 @@
+analyzer:
+  exclude:
+    - packages/just_audio/**
+  errors:
+    deprecated_member_use: ignore
