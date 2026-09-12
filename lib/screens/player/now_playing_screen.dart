@@ -431,7 +431,7 @@ class _ErrorBox extends StatelessWidget {
   }
 }
 
-class _QueueDock extends StatelessWidget {
+class _QueueDock extends StatefulWidget {
   final bool open;
   final double maxHeight;
   final dynamic t;
@@ -449,7 +449,93 @@ class _QueueDock extends StatelessWidget {
   });
 
   @override
+  State<_QueueDock> createState() => _QueueDockState();
+}
+
+class _QueueDockState extends State<_QueueDock>
+    with SingleTickerProviderStateMixin {
+  static const double _collapsedHeight = 56;
+  static const double _headerHeightOpen = 32;
+
+  late final AnimationController _controller;
+  double _overscroll = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      value: widget.open ? 1 : 0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _QueueDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.open != oldWidget.open) {
+      _controller.animateTo(
+        widget.open ? 1 : 0,
+        duration: const Duration(milliseconds: 320),
+        curve: widget.open ? Curves.easeOutCubic : Curves.easeInCubic,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double get _range => widget.maxHeight - _collapsedHeight;
+
+  void _onHeaderDragUpdate(DragUpdateDetails details) {
+    widget.onActivity();
+    final range = _range;
+    if (range <= 0) return;
+    final delta = -details.delta.dy / range;
+    _controller.value = (_controller.value + delta).clamp(0.0, 1.0);
+  }
+
+  void _onHeaderDragEnd(DragEndDetails details) {
+    final range = _range;
+    final velocity =
+        range > 0 ? (details.primaryVelocity ?? 0) / range : 0.0;
+    final shouldOpen = velocity < -0.7 ||
+        (_controller.value > 0.5 && velocity <= 0.7);
+
+    if (shouldOpen && !widget.open) {
+      widget.onOpen();
+    } else if (!shouldOpen && widget.open) {
+      widget.onClose();
+    } else {
+      _controller.animateTo(
+        widget.open ? 1 : 0,
+        duration: const Duration(milliseconds: 260),
+        curve: widget.open ? Curves.easeOutCubic : Curves.easeInCubic,
+      );
+    }
+  }
+
+  bool _onListOverscroll(ScrollNotification notification) {
+    widget.onActivity();
+    if (notification is OverscrollNotification) {
+      if (notification.overscroll > 0) {
+        _overscroll += notification.overscroll;
+        if (_overscroll > 48 && widget.open) {
+          _overscroll = 0;
+          widget.onClose();
+        }
+      }
+    } else if (notification is ScrollEndNotification) {
+      _overscroll = 0;
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final t = widget.t;
     final player = context.watch<PlayerProvider>();
     final queue = player.queue;
     final active = player.currentQueueIndex;
@@ -463,137 +549,149 @@ class _QueueDock extends StatelessWidget {
     if (upcoming.isEmpty) return const SizedBox.shrink();
     final next = upcoming.first;
 
-    return GestureDetector(
-      onVerticalDragEnd: open
-          ? null
-          : (d) {
-              final v = d.primaryVelocity ?? 0;
-              if (v < -300) onOpen();
-            },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 360),
-        curve: const Cubic(0.22, 1, 0.36, 1),
-        height: open ? maxHeight : 56,
-        decoration: const BoxDecoration(
-          color: Color(0xC7000000),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 40,
-              offset: Offset(0, -16),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final value = _controller.value;
+        final height = _collapsedHeight + _range * value;
+        final headerHeight =
+            _collapsedHeight + (_headerHeightOpen - _collapsedHeight) * value;
+        final showList = value > 0.5;
+
+        return SizedBox(
+          height: height,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Color(0xC7000000),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x66000000),
+                  blurRadius: 40,
+                  offset: Offset(0, -16),
+                ),
+              ],
             ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            SizedBox(
-              height: open ? 32 : 56,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onVerticalDragEnd: open
-                    ? (d) {
-                        if ((d.primaryVelocity ?? 0) > 400) onClose();
-                      }
-                    : null,
-                child: Stack(
-                alignment: Alignment.centerLeft,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              child: Column(
                 children: [
-                  const Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: SizedBox(
-                        width: 36,
-                        height: 4,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0x66FFFFFF),
-                            borderRadius: BorderRadius.all(Radius.circular(99)),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (!open)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                      child: Row(
+                  SizedBox(
+                    height: headerHeight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: _onHeaderDragUpdate,
+                      onVerticalDragEnd: _onHeaderDragEnd,
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: _MiniCover(url: next.value.coverImageUrl),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'UP NEXT',
-                                  style: TextStyle(
-                                    color: t.textPrimary.withOpacity(0.55),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
+                          const Align(
+                            alignment: Alignment.topCenter,
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 6),
+                              child: SizedBox(
+                                width: 36,
+                                height: 4,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Color(0x66FFFFFF),
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(99)),
                                   ),
                                 ),
-                                Text(
-                                  (next.value.titleHindi?.trim().isNotEmpty ??
-                                          false)
-                                      ? next.value.titleHindi!
-                                      : next.value.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: t.textPrimary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
+                          if (!showList)
+                            Opacity(
+                              opacity: (1 - value * 2).clamp(0.0, 1.0),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                                child: Row(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: _MiniCover(
+                                          url: next.value.coverImageUrl),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'UP NEXT',
+                                            style: TextStyle(
+                                              color: t.textPrimary
+                                                  .withOpacity(0.55),
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 1.2,
+                                            ),
+                                          ),
+                                          Text(
+                                            (next.value.titleHindi
+                                                        ?.trim()
+                                                        .isNotEmpty ??
+                                                    false)
+                                                ? next.value.titleHindi!
+                                                : next.value.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: t.textPrimary,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
+                  ),
+                  Expanded(
+                    child: showList
+                        ? NotificationListener<ScrollNotification>(
+                            onNotification: _onListOverscroll,
+                            child: ListView.builder(
+                              physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics(),
+                              ),
+                              itemCount: upcoming.length,
+                              itemBuilder: (context, i) {
+                                final item = upcoming[i];
+                                return _QueueTile(
+                                  song: item.value,
+                                  t: t,
+                                  onTap: () {
+                                    context
+                                        .read<PlayerProvider>()
+                                        .jumpToQueueIndex(item.key);
+                                    widget.onClose();
+                                  },
+                                );
+                              },
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
-              ),
             ),
-            Expanded(
-              child: open
-                  ? NotificationListener<ScrollNotification>(
-                      onNotification: (_) {
-                        onActivity();
-                        return false;
-                      },
-                      child: ListView.builder(
-                        physics: const ClampingScrollPhysics(),
-                        itemCount: upcoming.length,
-                        itemBuilder: (context, i) {
-                          final item = upcoming[i];
-                          return _QueueTile(
-                            song: item.value,
-                            t: t,
-                            onTap: () {
-                              context
-                                  .read<PlayerProvider>()
-                                  .jumpToQueueIndex(item.key);
-                              onClose();
-                            },
-                          );
-                        },
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
