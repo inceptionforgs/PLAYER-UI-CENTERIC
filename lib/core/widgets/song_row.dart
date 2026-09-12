@@ -52,7 +52,7 @@ class SongRowActions {
 }
 
 class SongRow extends StatelessWidget {
-  static const double tileHeight = 96;
+  static const double tileHeight = 112;
 
   final SongRowData data;
   final SongRowActions actions;
@@ -78,6 +78,13 @@ class SongRow extends StatelessWidget {
     final isNow = data.isNow;
     final isPlaying = data.isPlaying;
     final subtitle = data.subtitle;
+
+    final hasHindi = (song.titleHindi?.trim().isNotEmpty ?? false);
+    final hasHinglish = song.title.trim().isNotEmpty;
+    final showBoth = hasHindi && hasHinglish && song.titleHindi != song.title;
+    final primaryTitle = hasHindi ? song.titleHindi! : song.title;
+    final secondaryTitle = showBoth ? song.title : null;
+
     final themeId = t.id as AppThemeId;
     final apple = themeId == AppThemeId.silverChrome;
     final cover = song.coverImageUrl;
@@ -91,7 +98,7 @@ class SongRow extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: isNow,
-        label: isNow && isPlaying ? '${song.title}, playing' : song.title,
+        label: isNow && isPlaying ? '$primaryTitle, playing' : primaryTitle,
         child: SizedBox(
           height: tileHeight,
           child: DecoratedBox(
@@ -146,17 +153,31 @@ class SongRow extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              song.title,
-                              maxLines: 2,
+                              primaryTitle,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: t.textPrimary,
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 height: 1.2,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            if (secondaryTitle != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                secondaryTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: t.accentLight,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 3),
                             Text(
                               _subtitleLine(subtitle, song),
                               maxLines: 1,
