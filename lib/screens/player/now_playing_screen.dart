@@ -248,7 +248,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          song.title,
+                          (song.titleHindi?.trim().isNotEmpty ?? false)
+                              ? song.titleHindi!
+                              : song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -539,7 +541,10 @@ class _QueueDock extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  next.value.title,
+                                  (next.value.titleHindi?.trim().isNotEmpty ??
+                                          false)
+                                      ? next.value.titleHindi!
+                                      : next.value.title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -662,8 +667,10 @@ class _QueueTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      song.title,
-                      maxLines: 2,
+                      (song.titleHindi?.trim().isNotEmpty ?? false)
+                          ? song.titleHindi!
+                          : song.title,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: t.textPrimary,
@@ -672,6 +679,20 @@ class _QueueTile extends StatelessWidget {
                         height: 1.2,
                       ),
                     ),
+                    if ((song.titleHindi?.trim().isNotEmpty ?? false) &&
+                        song.titleHindi != song.title) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: t.textPrimary.withOpacity(0.62),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       song.singerName ?? 'Unknown Artist',
