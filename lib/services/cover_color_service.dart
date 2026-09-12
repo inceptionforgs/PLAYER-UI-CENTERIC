@@ -45,8 +45,9 @@ class CoverColorService {
         size: const Size(48, 48),
         maximumColorCount: 6,
       );
-      final raw = palette.dominantColor?.color ??
-          palette.vibrantColor?.color ??
+      final raw = palette.vibrantColor?.color ??
+          palette.lightVibrantColor?.color ??
+          palette.dominantColor?.color ??
           palette.mutedColor?.color;
       if (raw == null) return null;
       _mem[key] = raw;
@@ -65,16 +66,16 @@ class CoverColorService {
   static Color backdrop(Color src, Color fallback) {
     final hsl = HSLColor.fromColor(src);
     return hsl
-        .withSaturation(hsl.saturation.clamp(0.20, 0.48))
-        .withLightness(0.13)
+        .withSaturation(hsl.saturation.clamp(0.55, 0.95))
+        .withLightness(0.32)
         .toColor();
   }
 
   static Color backdropDeep(Color src, Color fallback) {
     final hsl = HSLColor.fromColor(src);
     return hsl
-        .withSaturation(hsl.saturation.clamp(0.18, 0.40))
-        .withLightness(0.06)
+        .withSaturation(hsl.saturation.clamp(0.35, 0.70))
+        .withLightness(0.08)
         .toColor();
   }
 }
