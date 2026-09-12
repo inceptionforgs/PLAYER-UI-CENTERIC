@@ -31,6 +31,8 @@ class MiniPlayerCyberBlack extends StatelessWidget {
     final queuePosition = data.queuePosition;
     final playerProvider = data.playerProvider;
     final singerName = (song.singerName as String?) ?? '';
+    final hasHindi = (song.titleHindi?.trim().isNotEmpty ?? false);
+    final primaryTitle = hasHindi ? song.titleHindi! : song.title;
     final subtitleParts = <String>[
       if (singerName.isNotEmpty) singerName,
       if (queuePosition.isNotEmpty) queuePosition,
@@ -57,7 +59,7 @@ class MiniPlayerCyberBlack extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  song.title,
+                  primaryTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
