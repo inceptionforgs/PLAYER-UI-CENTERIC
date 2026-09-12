@@ -3,14 +3,89 @@ import 'package:provider/provider.dart';
 import '../../../../providers/player_provider.dart';
 import '../../../../providers/theme_provider.dart';
 
+class SilverChromePlayButton extends StatelessWidget {
+  final double size;
+  final double iconSize;
+  final Color? accent;
+
+  const SilverChromePlayButton({
+    Key? key,
+    this.size = 66,
+    this.iconSize = 38,
+    this.accent,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final player = context.watch<PlayerProvider>();
+    final t = context.watch<ThemeProvider>().theme;
+    final isLoading = context.select<PlayerProvider, bool>((p) => p.isLoading);
+    final playColor = accent ?? t.textPrimary;
+    final ring = (size / 66) * 3;
+
+    return Semantics(
+      button: true,
+      label: player.isPlaying ? 'Pause' : 'Play',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => player.togglePlayPause(),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              boxShadow: [
+                const BoxShadow(
+                  color: Color(0x47000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: Colors.white,
+                  spreadRadius: ring * 2,
+                  blurRadius: 0,
+                ),
+                BoxShadow(
+                  color: playColor,
+                  spreadRadius: ring,
+                  blurRadius: 0,
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: isLoading
+                ? SizedBox(
+                    width: iconSize,
+                    height: iconSize,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(playColor),
+                    ),
+                  )
+                : Icon(
+                    player.isPlaying ? Icons.pause : Icons.play_arrow,
+                    color: playColor,
+                    size: iconSize,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class SilverChromePlayerControls extends StatelessWidget {
-  const SilverChromePlayerControls({Key? key}) : super(key: key);
+  final Color? accent;
+
+  const SilverChromePlayerControls({Key? key, this.accent}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final playerProvider = context.watch<PlayerProvider>();
     final t = context.watch<ThemeProvider>().theme;
-    final isLoading = context.select<PlayerProvider, bool>((p) => p.isLoading);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -18,50 +93,30 @@ class SilverChromePlayerControls extends StatelessWidget {
         Semantics(
           button: true,
           label: 'Previous',
-          child: IconButton(
-            icon: Icon(Icons.skip_previous, color: t.textPrimary, size: 32),
-            onPressed: () => playerProvider.previous(),
+          child: SizedBox(
+            width: 80,
+            height: 80,
+            child: IconButton(
+              icon: Icon(Icons.skip_previous, color: t.textPrimary, size: 50),
+              padding: EdgeInsets.zero,
+              onPressed: () => playerProvider.previous(),
+            ),
           ),
         ),
-        const SizedBox(width: 22),
-        Container(
-          width: 66,
-          height: 66,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: t.textPrimary, width: 2),
-            color: t.textPrimary.withOpacity(0.08),
-          ),
-          child: Semantics(
-            button: true,
-            label: playerProvider.isPlaying ? 'Pause' : 'Play',
-            child: isLoading
-                ? Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(t.textPrimary),
-                    ),
-                  )
-                : IconButton(
-                    icon: Icon(
-                      playerProvider.isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: t.textPrimary,
-                      size: 28,
-                    ),
-                    iconSize: 28,
-                    padding: EdgeInsets.zero,
-                    onPressed: () => playerProvider.togglePlayPause(),
-                  ),
-          ),
-        ),
-        const SizedBox(width: 22),
+        const SizedBox(width: 36),
+        SilverChromePlayButton(accent: accent),
+        const SizedBox(width: 36),
         Semantics(
           button: true,
           label: 'Next',
-          child: IconButton(
-            icon: Icon(Icons.skip_next, color: t.textPrimary, size: 32),
-            onPressed: () => playerProvider.next(),
+          child: SizedBox(
+            width: 80,
+            height: 80,
+            child: IconButton(
+              icon: Icon(Icons.skip_next, color: t.textPrimary, size: 50),
+              padding: EdgeInsets.zero,
+              onPressed: () => playerProvider.next(),
+            ),
           ),
         ),
       ],
