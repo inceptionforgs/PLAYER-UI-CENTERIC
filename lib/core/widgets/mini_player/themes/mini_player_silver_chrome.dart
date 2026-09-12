@@ -45,6 +45,10 @@ class MiniPlayerSilverChrome extends StatelessWidget {
     final playerProvider = data.playerProvider;
     final cover = song?.coverImageUrl;
     final singer = song?.singerName ?? '';
+    final hasHindi = (song?.titleHindi?.trim().isNotEmpty ?? false);
+    final primaryTitle = song == null
+        ? ''
+        : (hasHindi ? song.titleHindi! : song.title);
     final t = data.theme;
     final bottom = MediaQuery.paddingOf(context).bottom;
 
@@ -171,7 +175,7 @@ class MiniPlayerSilverChrome extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              song.title,
+                              primaryTitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
