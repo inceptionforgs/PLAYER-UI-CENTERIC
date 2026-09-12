@@ -23,6 +23,8 @@ class MiniPlayerDefault extends StatelessWidget {
     final loopMode = data.loopMode;
     final queuePosition = data.queuePosition;
     final playerProvider = data.playerProvider;
+    final hasHindi = (song.titleHindi?.trim().isNotEmpty ?? false);
+    final primaryTitle = hasHindi ? song.titleHindi! : song.title;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
@@ -53,7 +55,7 @@ class MiniPlayerDefault extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    song.title,
+                    primaryTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
