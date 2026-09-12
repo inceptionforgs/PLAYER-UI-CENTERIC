@@ -68,7 +68,7 @@ class SearchResultRow extends StatelessWidget {
         backgroundColor: t.surface,
         title: Text('Delete download?', style: TextStyle(color: t.textPrimary)),
         content: Text(
-          'This will remove "${song.title}" from your downloads.',
+          'This will remove "${(song.titleHindi?.trim().isNotEmpty ?? false) ? song.titleHindi! : song.title}" from your downloads.',
           style: TextStyle(color: t.textSecondary),
         ),
         actions: [
@@ -163,4 +163,3 @@ class SearchResultRow extends StatelessWidget {
     );
   }
 }
-
