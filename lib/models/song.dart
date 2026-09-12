@@ -1,6 +1,7 @@
 class Song {
   final String id;
   final String title;
+  final String? titleHindi;
   final String? singerId;
   final String? singerName;
   final String? category;
@@ -14,6 +15,7 @@ class Song {
   Song({
     required this.id,
     required this.title,
+    this.titleHindi,
     this.singerId,
     this.singerName,
     this.category,
@@ -66,6 +68,7 @@ class Song {
     return Song(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? 'Unknown Song',
+      titleHindi: json['title_hindi'] as String?,
       singerId: json['singer_id'] as String?,
       singerName: singerName,
       category: json['category'] as String?,
@@ -82,6 +85,7 @@ class Song {
     return {
       'id': id,
       'title': title,
+      'title_hindi': titleHindi,
       'singer_id': singerId,
       'singer_name': singerName,
       'category': category,
