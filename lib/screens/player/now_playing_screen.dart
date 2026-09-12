@@ -43,7 +43,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   void _tick() {
-    HapticFeedback.selectionClick();
+    HapticFeedback.mediumImpact();
+    Future.delayed(const Duration(milliseconds: 70), () {
+      if (mounted) HapticFeedback.mediumImpact();
+    });
   }
 
   void _openSleepTimerSheet() {
