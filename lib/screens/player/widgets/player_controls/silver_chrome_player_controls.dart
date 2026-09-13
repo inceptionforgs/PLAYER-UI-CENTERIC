@@ -7,12 +7,14 @@ class SilverChromePlayButton extends StatelessWidget {
   final double size;
   final double iconSize;
   final Color? accent;
+  final bool decorative;
 
   const SilverChromePlayButton({
     Key? key,
     this.size = 66,
     this.iconSize = 38,
     this.accent,
+    this.decorative = false,
   }) : super(key: key);
 
   @override
@@ -23,14 +25,23 @@ class SilverChromePlayButton extends StatelessWidget {
     final playColor = accent ?? t.textPrimary;
     final ring = (size / 66) * 3;
 
+    final icon = decorative
+        ? Icons.play_arrow
+        : isLoading
+            ? null
+            : (player.isPlaying ? Icons.pause : Icons.play_arrow);
+
     return Semantics(
-      button: true,
-      label: player.isPlaying ? 'Pause' : 'Play',
+      button: !decorative,
+      excludeSemantics: decorative,
+      label: decorative
+          ? null
+          : (player.isPlaying ? 'Pause' : 'Play'),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () => player.togglePlayPause(),
+          onTap: decorative ? null : () => player.togglePlayPause(),
           child: Container(
             width: size,
             height: size,
@@ -56,7 +67,7 @@ class SilverChromePlayButton extends StatelessWidget {
               ],
             ),
             alignment: Alignment.center,
-            child: isLoading
+            child: icon == null
                 ? SizedBox(
                     width: iconSize,
                     height: iconSize,
@@ -66,7 +77,7 @@ class SilverChromePlayButton extends StatelessWidget {
                     ),
                   )
                 : Icon(
-                    player.isPlaying ? Icons.pause : Icons.play_arrow,
+                    icon,
                     color: playColor,
                     size: iconSize,
                   ),
