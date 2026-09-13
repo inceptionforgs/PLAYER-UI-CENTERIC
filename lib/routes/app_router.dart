@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/singer.dart';
 import '../models/song.dart';
+import '../screens/custom_song/custom_song_screen.dart';
+import '../screens/library/music_library_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/singers/singer_profile_screen.dart';
@@ -14,8 +16,6 @@ import '../screens/singer_onboarding/singer_onboarding_screen.dart';
 import 'route_names.dart';
 
 class AppRouter {
-  /// Mini-player lives in [MaterialApp.builder] (sibling of the Navigator),
-  /// so [Navigator.of] cannot see a Navigator ancestor. Use this key instead.
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
@@ -80,6 +80,16 @@ class AppRouter {
       case RouteNames.singerOnboarding:
         return MaterialPageRoute(
           builder: (_) => const SingerOnboardingScreen(),
+          settings: settings,
+        );
+      case RouteNames.musicLibrary:
+        return MaterialPageRoute(
+          builder: (_) => const MusicLibraryScreen(),
+          settings: settings,
+        );
+      case RouteNames.customSong:
+        return MaterialPageRoute(
+          builder: (_) => const CustomSongScreen(),
           settings: settings,
         );
       default:
