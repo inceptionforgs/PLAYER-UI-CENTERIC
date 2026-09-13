@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_themes.dart';
 import '../constants/app_strings.dart';
-import '../utils/home_nav.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../routes/app_router.dart';
@@ -28,12 +27,6 @@ class AppDrawer extends StatefulWidget {
 }
 
 class _AppDrawerState extends State<AppDrawer> {
-  bool _musicOpen = false;
-
-  void _toggleMusic() {
-    setState(() => _musicOpen = !_musicOpen);
-  }
-
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -112,75 +105,17 @@ class _AppDrawerState extends State<AppDrawer> {
               ],
             ),
             Divider(height: 30, color: t.textPrimary.withOpacity(0.15)),
-
-            _DrawerTree(
-              label: 'MUSIC',
-              color: t.textSecondary,
-              accent: t.accent,
-              text: t.textPrimary,
-              radius: radius,
-              surface: t.surface,
-              collapsed: true,
-              expanded: _musicOpen,
-              onToggle: _toggleMusic,
-              children: [
             _DrawerActionRow(
-              icon: Icons.music_note,
-              label: AppStrings.navSongs,
+              icon: Icons.library_music,
+              label: AppStrings.musicLibrary,
               t: t,
               radius: radius,
               onTap: () {
-                Navigator.of(context).pop();
-                HomeNav.goTab(HomeNav.songs);
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.pushNamed(RouteNames.musicLibrary);
               },
             ),
-            const SizedBox(height: 8),
-            _DrawerActionRow(
-              icon: Icons.mic,
-              label: AppStrings.navSingers,
-              t: t,
-              radius: radius,
-              onTap: () {
-                Navigator.of(context).pop();
-                HomeNav.goTab(HomeNav.singers);
-              },
-            ),
-            const SizedBox(height: 8),
-            _DrawerActionRow(
-              icon: Icons.trending_up,
-              label: AppStrings.navTrending,
-              t: t,
-              radius: radius,
-              onTap: () {
-                Navigator.of(context).pop();
-                HomeNav.goTab(HomeNav.trending);
-              },
-            ),
-            const SizedBox(height: 8),
-            _DrawerActionRow(
-              icon: Icons.favorite,
-              label: AppStrings.navFavorites,
-              t: t,
-              radius: radius,
-              onTap: () {
-                Navigator.of(context).pop();
-                HomeNav.goTab(HomeNav.favorites);
-              },
-            ),
-            const SizedBox(height: 8),
-            _DrawerActionRow(
-              icon: Icons.download,
-              label: 'Downloaded',
-              t: t,
-              radius: radius,
-              onTap: () {
-                Navigator.of(context).pop();
-                HomeNav.goTab(HomeNav.downloads);
-              },
-            ),
-              ],
-            ),
-
             const SizedBox(height: 18),
             _DrawerActionRow(
               icon: Icons.graphic_eq,
@@ -248,7 +183,18 @@ class _AppDrawerState extends State<AppDrawer> {
                 navigator.pushNamed(RouteNames.singerOnboarding);
               },
             ),
-
+            const SizedBox(height: 8),
+            _DrawerActionRow(
+              icon: Icons.mic,
+              label: AppStrings.customSongDrawer,
+              t: t,
+              radius: radius,
+              onTap: () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.pushNamed(RouteNames.customSong);
+              },
+            ),
             const SizedBox(height: 18),
             _SectionTitle(label: 'ABOUT US', color: t.textSecondary),
             const SizedBox(height: 10),
@@ -295,97 +241,6 @@ class _AppDrawerState extends State<AppDrawer> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _DrawerTree extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color accent;
-  final Color text;
-  final Color surface;
-  final double radius;
-  final bool collapsed;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final List<Widget> children;
-
-  const _DrawerTree({
-    required this.label,
-    required this.color,
-    required this.accent,
-    required this.text,
-    required this.surface,
-    required this.radius,
-    required this.collapsed,
-    required this.expanded,
-    required this.onToggle,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!collapsed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionTitle(label: label, color: color),
-          const SizedBox(height: 10),
-          ...children,
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: onToggle,
-          borderRadius: BorderRadius.circular(radius),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              color: expanded ? accent.withOpacity(0.38) : surface,
-              borderRadius: BorderRadius.circular(radius),
-              border: Border.all(
-                color: expanded ? accent : text.withOpacity(0.15),
-                width: expanded ? 2 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: expanded ? const Color(0xFF1C1912) : color,
-                      fontSize: expanded ? 12 : 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-                Icon(
-                  expanded ? Icons.expand_less : Icons.expand_more,
-                  color: expanded ? const Color(0xFF1C1912) : accent,
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (expanded) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }
