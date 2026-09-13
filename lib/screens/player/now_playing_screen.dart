@@ -216,7 +216,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           _armIdle();
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 380),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -353,6 +353,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               open: _queueOpen,
                               maxHeight: constraints.maxHeight * 0.80,
                               t: t,
+                              tint: _artColor,
                               onOpen: _openQueue,
                               onClose: _closeQueue,
                               onActivity: _armIdle,
@@ -438,6 +439,7 @@ class _QueueDock extends StatefulWidget {
   final bool open;
   final double maxHeight;
   final dynamic t;
+  final Color? tint;
   final VoidCallback onOpen;
   final VoidCallback onClose;
   final VoidCallback onActivity;
@@ -446,6 +448,7 @@ class _QueueDock extends StatefulWidget {
     required this.open,
     required this.maxHeight,
     required this.t,
+    required this.tint,
     required this.onOpen,
     required this.onClose,
     required this.onActivity,
@@ -563,11 +566,21 @@ class _QueueDockState extends State<_QueueDock>
 
         return SizedBox(
           height: height,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: Color(0xC7000000),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-              boxShadow: [
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: widget.tint == null
+                  ? const Color(0xC7000000)
+                  : Color.fromRGBO(
+                      (widget.tint!.red * 0.22).round(),
+                      (widget.tint!.green * 0.22).round(),
+                      (widget.tint!.blue * 0.22).round(),
+                      0.92,
+                    ),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(18)),
+              boxShadow: const [
                 BoxShadow(
                   color: Color(0x66000000),
                   blurRadius: 40,
