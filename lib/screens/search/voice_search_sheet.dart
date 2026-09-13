@@ -29,25 +29,35 @@ class VoiceSearchSheet extends StatefulWidget {
   State<VoiceSearchSheet> createState() => _VoiceSearchSheetState();
 }
 
-class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
+class _VoiceSearchSheetState extends State<VoiceSearchSheet>
+    with SingleTickerProviderStateMixin {
   final SpeechToText _speech = SpeechToText();
   String _status = 'Listening...';
   bool _listening = false;
   bool _failed = false;
   bool _busy = false;
   bool _closing = false;
-  double _level = 0.28;
+  double _level = 0.22;
   Timer? _watch;
+  StreamSubscription<VoiceEvent>? _events;
+  late final AnimationController _idle;
 
   @override
   void initState() {
     super.initState();
+    _idle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
   @override
   void dispose() {
     _watch?.cancel();
+    _events?.cancel();
+    _idle.dispose();
+    VoiceInputService.stop();
     if (_speech.isListening) {
       _speech.stop();
     }
@@ -56,9 +66,10 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
 
   void _armWatch() {
     _watch?.cancel();
-    _watch = Timer(const Duration(seconds: 22), () {
+    _watch = Timer(const Duration(seconds: 12), () {
       if (!mounted || _closing) return;
       _busy = false;
+      VoiceInputService.stop();
       if (_speech.isListening) {
         _speech.stop();
       }
@@ -71,6 +82,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     _watch?.cancel();
     _busy = false;
     _listening = false;
+    _idle.stop();
     setState(() {
       _failed = true;
       _status = message;
@@ -84,6 +96,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     _closing = true;
     _busy = false;
     _listening = false;
+    VoiceInputService.stop();
     Navigator.of(context).pop(q);
   }
 
@@ -94,21 +107,48 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     } catch (_) {}
   }
 
+  void _onNative(VoiceEvent e) {
+    if (!mounted || _closing) return;
+    switch (e.type) {
+      case 'rms':
+        final v = ((e.rms ?? -2) + 2) / 12;
+        setState(() => _level = v.clamp(0.18, 1.0));
+        break;
+      case 'partial':
+        final t = e.text?.trim() ?? '';
+        if (t.isNotEmpty) setState(() => _status = t);
+        break;
+      case 'final':
+        final t = e.text?.trim() ?? '';
+        if (t.isNotEmpty) {
+          _popWith(t);
+        } else {
+          _fail("Didn't catch that. Tap the mic and try again.");
+        }
+        break;
+      case 'error':
+        _fail("Didn't catch that. Tap the mic and try again.");
+        break;
+    }
+  }
+
   Future<void> _start() async {
-    if (_closing) return;
-    if (_busy) return;
+    if (_closing || _busy) return;
     _busy = true;
     _watch?.cancel();
+    await _events?.cancel();
     setState(() {
       _failed = false;
       _status = 'Listening...';
       _listening = true;
-      _level = 0.42;
+      _level = 0.22;
     });
+    _idle.repeat(reverse: true);
     _armWatch();
 
     try {
-      final mic = await Permission.microphone.request()
+      final mic = await Permission.microphone
+          .request()
           .timeout(const Duration(seconds: 8));
       if (!mounted || _closing) return;
       if (!mic.isGranted) {
@@ -122,25 +162,25 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
 
       await _hushPlayer();
       if (!mounted || _closing) return;
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (!mounted || _closing) return;
 
       if (Platform.isAndroid) {
-        final spoken = await VoiceInputService.listen(lang: 'hi-IN');
+        _events = VoiceInputService.events().listen(_onNative);
+        final ok = await VoiceInputService.start(lang: 'hi-IN');
         if (!mounted || _closing) return;
-        if (spoken != null && spoken.isNotEmpty) {
-          _popWith(spoken);
+        if (!ok) {
+          _fail(
+            'Voice search is not available on this phone. Install Google app.',
+          );
           return;
         }
-        _fail("Didn't catch that. Tap the mic and try again.");
         return;
       }
 
-      final ok = await _speech
+      final ready = await _speech
           .initialize()
           .timeout(const Duration(seconds: 5), onTimeout: () => false);
       if (!mounted || _closing) return;
-      if (!ok) {
+      if (!ready) {
         _fail('Voice search is not available on this phone.');
         return;
       }
@@ -151,6 +191,10 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
           if (words.isEmpty) return;
           setState(() => _status = words);
           if (result.finalResult) _popWith(words);
+        },
+        onSoundLevelChange: (level) {
+          if (!mounted || !_listening) return;
+          setState(() => _level = ((level + 8) / 18).clamp(0.18, 1.0));
         },
         listenOptions: SpeechListenOptions(
           listenFor: const Duration(seconds: 8),
@@ -176,6 +220,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
       _watch?.cancel();
       _busy = false;
       _listening = false;
+      VoiceInputService.stop();
       if (_speech.isListening) {
         _speech.stop();
       }
@@ -188,7 +233,6 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<ThemeProvider>().theme;
-    final ring = 78.0 + 34.0 * _level;
 
     return Dialog.fullscreen(
       backgroundColor: t.background,
@@ -219,36 +263,46 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
             const Spacer(flex: 3),
             GestureDetector(
               onTap: _onMicTap,
-              child: SizedBox(
-                width: 160,
-                height: 160,
-                child: Center(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 70),
-                    width: _listening ? ring : 104,
-                    height: _listening ? ring : 104,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: (_failed ? t.textSecondary : t.accent)
-                          .withOpacity(0.16),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _failed ? t.textSecondary : t.accent,
+              child: AnimatedBuilder(
+                animation: _idle,
+                builder: (context, _) {
+                  final breathe = _listening ? 0.12 + 0.10 * _idle.value : 0;
+                  final energy = _listening ? (_level + breathe).clamp(0.18, 1.0) : 0.0;
+                  return SizedBox(
+                    width: 220,
+                    height: 220,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _WaveRing(
+                          size: 88 + 118 * energy,
+                          color: t.accent.withOpacity(0.10 + 0.10 * energy),
                         ),
-                        child: Icon(
-                          _failed ? Icons.mic_off : Icons.mic,
-                          color: t.background,
-                          size: 36,
+                        _WaveRing(
+                          size: 88 + 78 * energy,
+                          color: t.accent.withOpacity(0.16 + 0.14 * energy),
                         ),
-                      ),
+                        _WaveRing(
+                          size: 88 + 40 * energy,
+                          color: t.accent.withOpacity(0.22 + 0.18 * energy),
+                        ),
+                        Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _failed ? t.textSecondary : t.accent,
+                          ),
+                          child: Icon(
+                            _failed ? Icons.mic_off : Icons.mic,
+                            color: t.background,
+                            size: 36,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 14),
@@ -264,6 +318,25 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
             const SizedBox(height: 36),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WaveRing extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _WaveRing({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
       ),
     );
   }
