@@ -160,8 +160,15 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                     ),
                     child: Column(
                       children: [
-                        if (!locked) ...[
-                          Text(
+                        // Height-jump fix: previously this label was only
+                        // rendered `if (!locked)`, so switching to/from
+                        // Mewati Bass™ removed a whole line of content and
+                        // shifted everything below it. Now it's always laid
+                        // out and just fades — same box height every time.
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 220),
+                          opacity: locked ? 0 : 1,
+                          child: Text(
                             selected.label.toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white,
@@ -170,10 +177,15 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                               letterSpacing: 1.4,
                             ),
                           ),
-                          const SizedBox(height: 14),
-                        ],
+                        ),
+                        const SizedBox(height: 14),
+                        // Height-jump fix: one constant height (168) for
+                        // both the bar visualiser and the Mewati Bass™
+                        // cone — previously locked used 236, causing the
+                        // whole card (and everything below it) to jump by
+                        // 68px whenever this preset was picked.
                         SizedBox(
-                          height: locked ? 236 : 168,
+                          height: 168,
                           child: locked
                               ? const _MewatiBassLock()
                               : Row(
@@ -192,8 +204,10 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                                 ),
                         ),
                         const SizedBox(height: 10),
-                        if (!locked)
-                          Row(
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 220),
+                          opacity: locked ? 0 : 1,
+                          child: Row(
                             children: _labels
                                 .map(
                                   (l) => Expanded(
@@ -210,6 +224,7 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                                 )
                                 .toList(),
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -415,7 +430,7 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
       animation: _pulse,
       builder: (context, _) {
         return CustomPaint(
-          painter: _BassWavePainter(energy: _energy),
+          painter: _SpeakerConePainter(energy: _energy),
           child: const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -424,9 +439,9 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
                   'MEWATI',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2.4,
+                    letterSpacing: 2.2,
                     height: 1.1,
                   ),
                 ),
@@ -434,9 +449,9 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
                   'BASS™',
                   style: TextStyle(
                     color: Color(0xFFF3D59A),
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 3.2,
+                    letterSpacing: 3.0,
                     height: 1.1,
                   ),
                 ),
@@ -449,61 +464,109 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
   }
 }
 
-class _BassWavePainter extends CustomPainter {
+/// Draws the Mewati Bass™ lock visual as a subwoofer cone viewed at an
+/// angle — concentric accordion-fold "pleats" radiating from a center
+/// dust-cap hub (where the brand text sits), flexing outward with the
+/// live bass-energy stream instead of the old flat rings + side sound
+/// waves. Reference: real subwoofer cone at rest vs. under bass load —
+/// the pleats visibly move, the whole diaphragm "breathes".
+class _SpeakerConePainter extends CustomPainter {
   final double energy;
 
-  _BassWavePainter({required this.energy});
+  _SpeakerConePainter({required this.energy});
+
+  static const double _tilt = 0.80; // vertical squash = angled-view look
+  static const Color _gold = Color(0xFFF3D59A);
+  static const Color _goldDeep = Color(0xFFC9A15C);
+  static const Color _dark = Color(0xFF12100C);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2 - 8;
     final pulse = energy.clamp(0.0, 1.0);
-    const gold = Color(0xFFF3D59A);
+    final c = Offset(size.width / 2, size.height / 2);
 
-    canvas.drawCircle(
-      c,
-      radius,
-      Paint()..color = const Color(0xFF12100C).withOpacity(0.92),
+    // Fit the tilted oval fully inside whatever box we're given.
+    final maxRByWidth = size.width / 2 - 6;
+    final maxRByHeight = (size.height / 2 - 6) / _tilt;
+    final maxR = math.min(maxRByWidth, maxRByHeight);
+
+    Rect ovalRect(double r) => Rect.fromCenter(
+          center: c,
+          width: r * 2,
+          height: r * 2 * _tilt,
+        );
+
+    // Cone body — dark backdrop with a soft radial falloff for depth.
+    canvas.drawOval(
+      ovalRect(maxR),
+      Paint()
+        ..shader = RadialGradient(
+          colors: [_dark.withOpacity(0.97), const Color(0xFF07060A)],
+        ).createShader(ovalRect(maxR)),
     );
 
-    final rim = Paint()
-      ..color = gold.withOpacity(0.80)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2;
-    canvas.drawCircle(c, radius * 0.96, rim);
-
-    final ring = Paint()
-      ..color = gold.withOpacity(0.22 + 0.40 * pulse)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    canvas.drawCircle(c, radius * (0.78 + 0.02 * pulse), ring);
-    canvas.drawCircle(c, radius * (0.62 + 0.03 * pulse), ring);
-    canvas.drawCircle(c, radius * (0.48 + 0.03 * pulse), ring);
-
-    if (pulse > 0.03) {
-      final wave = Paint()
-        ..color = gold.withOpacity(0.20 + 0.50 * pulse)
+    // Outer rim — the cone's basket edge.
+    canvas.drawOval(
+      ovalRect(maxR * 0.97),
+      Paint()
+        ..color = _gold.withOpacity(0.85)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round;
-      for (final dir in <double>[-1, 1]) {
-        for (var i = 0; i < 3; i++) {
-          final reach = radius * (0.16 + 0.14 * i + 0.18 * pulse);
-          final start = Offset(c.dx + dir * radius * 1.02, c.dy);
-          canvas.drawArc(
-            Rect.fromCircle(center: start, radius: reach),
-            dir < 0 ? -0.85 : math.pi - 0.85,
-            1.70,
-            false,
-            wave,
-          );
-        }
-      }
+        ..strokeWidth = 2.2,
+    );
+
+    // Accordion pleats — concentric rings standing in for the cone's
+    // fold lines. Inner pleats flex more than outer ones, same as a
+    // real cone's excursion pattern (biggest movement near the hub).
+    const pleatFractions = [0.85, 0.71, 0.58, 0.46, 0.35];
+    for (var i = 0; i < pleatFractions.length; i++) {
+      final excursion = 0.02 + i * 0.014;
+      final r = maxR * (pleatFractions[i] + excursion * pulse);
+      final shade =
+          (i.isEven ? _goldDeep : _gold).withOpacity(0.28 + 0.42 * pulse);
+      canvas.drawOval(
+        ovalRect(r),
+        Paint()
+          ..color = shade
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6,
+      );
     }
+
+    // Specular highlight, top-left — mimics light catching the angled
+    // cone surface in the reference photos.
+    canvas.drawOval(
+      ovalRect(maxR),
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.6),
+          radius: 0.55,
+          colors: [
+            Colors.white.withOpacity(0.09 + 0.06 * pulse),
+            Colors.transparent,
+          ],
+        ).createShader(ovalRect(maxR)),
+    );
+
+    // Center hub (dust cap) — where the Mewati Bass™ text sits. Pulses
+    // slightly with the bass so the "hub" itself feels alive.
+    final hubR = maxR * (0.32 + 0.03 * pulse);
+    canvas.drawOval(
+      ovalRect(hubR),
+      Paint()
+        ..shader = RadialGradient(
+          colors: [const Color(0xFF1C1912), _dark],
+        ).createShader(ovalRect(hubR)),
+    );
+    canvas.drawOval(
+      ovalRect(hubR),
+      Paint()
+        ..color = _gold.withOpacity(0.70 + 0.30 * pulse)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _BassWavePainter oldDelegate) =>
+  bool shouldRepaint(covariant _SpeakerConePainter oldDelegate) =>
       oldDelegate.energy != energy;
 }
