@@ -6,8 +6,31 @@ import '../../../core/constants/app_strings.dart';
 import '../../../providers/custom_song_provider.dart';
 import '../../../providers/theme_provider.dart';
 
-class DetailsStep extends StatelessWidget {
+class DetailsStep extends StatefulWidget {
   const DetailsStep({Key? key}) : super(key: key);
+
+  @override
+  State<DetailsStep> createState() => _DetailsStepState();
+}
+
+class _DetailsStepState extends State<DetailsStep> {
+  late final TextEditingController _name;
+  late final TextEditingController _mobile;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = context.read<CustomSongProvider>();
+    _name = TextEditingController(text: p.name);
+    _mobile = TextEditingController(text: p.mobile);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _mobile.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,19 +43,20 @@ class DetailsStep extends StatelessWidget {
         _BiLabel(hi: AppStrings.customSongNameHi, en: AppStrings.customSongNameEn),
         const SizedBox(height: 8),
         TextField(
-          controller: TextEditingController(text: p.name)
-            ..selection = TextSelection.collapsed(offset: p.name.length),
+          controller: _name,
           onChanged: p.setName,
           textCapitalization: TextCapitalization.words,
           style: TextStyle(color: t.textPrimary, fontSize: 15),
           decoration: _input(t, AppStrings.customSongNameHint),
         ),
         const SizedBox(height: 20),
-        _BiLabel(hi: AppStrings.customSongMobileHi, en: AppStrings.customSongMobileEn),
+        _BiLabel(
+          hi: AppStrings.customSongMobileHi,
+          en: AppStrings.customSongMobileEn,
+        ),
         const SizedBox(height: 8),
         TextField(
-          controller: TextEditingController(text: p.mobile)
-            ..selection = TextSelection.collapsed(offset: p.mobile.length),
+          controller: _mobile,
           onChanged: p.setMobile,
           keyboardType: TextInputType.phone,
           inputFormatters: [
