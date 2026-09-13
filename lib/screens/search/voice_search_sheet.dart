@@ -36,8 +36,10 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
   bool _failed = false;
   bool _busy = false;
   bool _closing = false;
+  bool _inited = false;
   double _level = 0.28;
   Timer? _settle;
+  Timer? _watch;
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
   @override
   void dispose() {
     _settle?.cancel();
+    _watch?.cancel();
     if (_speech.isListening) {
       _speech.stop();
     }
@@ -61,8 +64,20 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     } catch (_) {}
   }
 
+  void _armWatch() {
+    _watch?.cancel();
+    _watch = Timer(const Duration(seconds: 9), () {
+      if (!mounted || _closing || _failed) return;
+      if (_speech.isListening) {
+        _speech.stop();
+      }
+      _maybeFinish(forceFail: true);
+    });
+  }
+
   void _fail(String message) {
     if (!mounted || _closing) return;
+    _watch?.cancel();
     _busy = false;
     _listening = false;
     setState(() {
@@ -74,6 +89,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
   void _popWith(String phrase) {
     final q = phrase.trim();
     if (!mounted || _closing || q.isEmpty) return;
+    _watch?.cancel();
     _closing = true;
     _listening = false;
     _busy = false;
@@ -98,7 +114,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     if (!done) return;
     _listening = false;
     _settle?.cancel();
-    _settle = Timer(const Duration(milliseconds: 350), () {
+    _settle = Timer(const Duration(milliseconds: 280), () {
       _maybeFinish(forceFail: true);
     });
   }
@@ -110,7 +126,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
         id == 'error_speech_timeout' ||
         id == 'error_none') {
       _settle?.cancel();
-      _settle = Timer(const Duration(milliseconds: 350), () {
+      _settle = Timer(const Duration(milliseconds: 280), () {
         _maybeFinish(forceFail: true);
       });
       return;
@@ -126,28 +142,68 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     _fail("Didn't catch that. Tap the mic and try again.");
   }
 
-  /// NEW: Checks for an active network connection before we ever touch the
-  /// mic. Android's speech recognizer frequently reports `error_no_match`
-  /// or `error_speech_timeout` instead of `error_network` when connectivity
-  /// is missing or too poor to reach the recognition service, which used to
-  /// surface the misleading "Didn't catch that" message. Checking up front
-  /// lets us show the correct "needs internet" message immediately.
   Future<bool> _hasConnection() async {
     try {
       final result = await Connectivity().checkConnectivity();
       return result != ConnectivityResult.none;
     } catch (_) {
-      // If the connectivity check itself fails, don't block voice search
-      // on it — fall through and let speech_to_text's own error handling
-      // (onError/onStatus above) catch any real failure.
       return true;
     }
+  }
+
+  Future<String?> _pickLocale() async {
+    try {
+      final locales = await _speech.locales();
+      const prefer = ['hi_IN', 'hi-IN', 'en_IN', 'en-IN', 'en_US', 'en-US'];
+      for (final want in prefer) {
+        final norm = want.replaceAll('-', '_').toLowerCase();
+        for (final loc in locales) {
+          if (loc.localeId.replaceAll('-', '_').toLowerCase() == norm) {
+            return loc.localeId;
+          }
+        }
+      }
+      final sys = await _speech.systemLocale();
+      return sys?.localeId;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _listenWith(String? localeId) {
+    return _speech.listen(
+      onResult: (result) {
+        if (!mounted || _closing) return;
+        final words = result.recognizedWords.trim();
+        setState(() {
+          _heard = words;
+          if (words.isNotEmpty) _status = words;
+        });
+        if (result.finalResult && words.isNotEmpty) {
+          _popWith(words);
+        }
+      },
+      onSoundLevelChange: (level) {
+        if (!mounted || !_listening) return;
+        setState(() => _level = ((level + 8) / 18).clamp(0.22, 1.0));
+      },
+      listenOptions: SpeechListenOptions(
+        listenFor: const Duration(seconds: 8),
+        pauseFor: const Duration(seconds: 3),
+        partialResults: true,
+        cancelOnError: false,
+        listenMode: ListenMode.confirmation,
+        localeId: localeId,
+        onDevice: false,
+      ),
+    );
   }
 
   Future<void> _start() async {
     if (_busy || _closing) return;
     _busy = true;
     _settle?.cancel();
+    _watch?.cancel();
     setState(() {
       _failed = false;
       _heard = '';
@@ -156,8 +212,6 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
       _level = 0.28;
     });
 
-    // NEW: fail fast with a clear message if there's no connection at all,
-    // instead of letting the mic open and time out with a confusing error.
     final online = await _hasConnection();
     if (!mounted) return;
     if (!online) {
@@ -178,70 +232,48 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
 
     await _hushPlayer();
     if (!mounted) return;
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
 
-    final ok = await _speech.initialize(
-      onStatus: _onStatus,
-      onError: _onError,
-    );
-    if (!mounted) return;
-    if (!ok) {
-      _fail('Voice search is not available on this phone.');
-      return;
+    if (!_inited) {
+      final ok = await _speech.initialize(
+        onStatus: _onStatus,
+        onError: _onError,
+      );
+      if (!mounted) return;
+      if (!ok) {
+        _fail('Voice search is not available on this phone. Install Google app.');
+        return;
+      }
+      _inited = true;
     }
 
     if (_speech.isListening) {
       await _speech.stop();
     }
 
+    final localeId = await _pickLocale();
+    if (!mounted) return;
+
     setState(() {
       _listening = true;
       _status = 'Listening...';
     });
+    _armWatch();
 
     try {
-      await _speech.listen(
-        onResult: (result) {
-          if (!mounted || _closing) return;
-          final words = result.recognizedWords.trim();
-          setState(() {
-            _heard = words;
-            if (words.isNotEmpty) _status = words;
-          });
-          if (result.finalResult && words.isNotEmpty) {
-            _popWith(words);
-          }
-        },
-        onSoundLevelChange: (level) {
-          if (!mounted || !_listening) return;
-          setState(() => _level = ((level + 8) / 18).clamp(0.22, 1.0));
-        },
-        listenFor: const Duration(seconds: 12),
-        pauseFor: const Duration(seconds: 2),
-        partialResults: true,
-        cancelOnError: false,
-        listenMode: ListenMode.search,
-      );
+      await _listenWith(localeId);
+      if (mounted && !_speech.isListening && _heard.isEmpty && !_failed) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        if (mounted && !_speech.isListening && _heard.isEmpty && !_failed) {
+          _fail('Voice search is not available on this phone. Install Google app.');
+          return;
+        }
+      }
     } catch (_) {
       if (!mounted) return;
       try {
-        await _speech.listen(
-          onResult: (result) {
-            if (!mounted || _closing) return;
-            final words = result.recognizedWords.trim();
-            setState(() {
-              _heard = words;
-              if (words.isNotEmpty) _status = words;
-            });
-            if (result.finalResult && words.isNotEmpty) {
-              _popWith(words);
-            }
-          },
-          listenFor: const Duration(seconds: 12),
-          pauseFor: const Duration(seconds: 2),
-          partialResults: true,
-        );
+        await _listenWith(null);
       } catch (_) {
         _fail("Didn't catch that. Tap the mic and try again.");
         return;
