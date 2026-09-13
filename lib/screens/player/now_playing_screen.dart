@@ -57,18 +57,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  void _onHorizontalSwipe(DragEndDetails details) {
-    final v = details.primaryVelocity ?? 0;
-    if (v.abs() < 180) return;
-    final player = context.read<PlayerProvider>();
-    _tick();
-    if (v < 0) {
-      player.next();
-    } else {
-      player.previous(forceSkip: true);
-    }
-  }
-
   void _openEqualizerSettings() {
     Navigator.of(context).pushNamed(RouteNames.soundSettings);
   }
@@ -247,6 +235,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         size: 28,
                         iconSize: 15,
                         accent: playAccent,
+                        decorative: true,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -275,7 +264,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         children: [
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onHorizontalDragEnd: _onHorizontalSwipe,
                             onVerticalDragEnd: (d) {
                               final v = d.primaryVelocity ?? 0;
                               if (!_queueOpen && v < -400) _openQueue();
