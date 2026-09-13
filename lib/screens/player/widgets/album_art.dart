@@ -5,7 +5,7 @@
 // Green/silver-chrome: 8).
 //
 // Now Playing album is 331 max (original 230, +25% then +15%).
-// On narrow screens it still shrinks so width never overflows.
+// Cover crossfades in 200ms when the song changes.
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -37,6 +37,7 @@ class AlbumArt extends StatelessWidget {
     final radius = _radius(t.id);
     final screenWidth = MediaQuery.of(context).size.width;
     final size = (screenWidth - 48).clamp(160.0, maxArtSize);
+    final cover = song.coverImageUrl;
 
     return Container(
       width: size,
@@ -60,26 +61,35 @@ class AlbumArt extends StatelessWidget {
           ),
         ],
       ),
-      child: (song.coverImageUrl != null && song.coverImageUrl!.isNotEmpty)
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(radius > 2 ? radius - 2 : 0),
-              child: CachedNetworkImage(
-                imageUrl: song.coverImageUrl!,
-                fit: BoxFit.cover,
-                cacheManager: AppCacheManager.instance,
-                memCacheWidth: 512,
-                memCacheHeight: 512,
-                placeholder: (context, url) =>
-                    Icon(Icons.music_note, color: t.textPrimary, size: 64),
-                errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: t.textPrimary, size: 64),
-              ),
-            )
-          : Icon(
-              Icons.music_note,
-              color: t.textPrimary.withOpacity(0.85),
-              size: 64,
-            ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius > 2 ? radius - 2 : 0),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeOut,
+          child: (cover != null && cover.isNotEmpty)
+              ? CachedNetworkImage(
+                  key: ValueKey(cover),
+                  imageUrl: cover,
+                  fit: BoxFit.cover,
+                  width: size,
+                  height: size,
+                  cacheManager: AppCacheManager.instance,
+                  memCacheWidth: 512,
+                  memCacheHeight: 512,
+                  placeholder: (context, url) =>
+                      Icon(Icons.music_note, color: t.textPrimary, size: 64),
+                  errorWidget: (context, url, error) =>
+                      Icon(Icons.music_note, color: t.textPrimary, size: 64),
+                )
+              : Icon(
+                  key: const ValueKey('empty'),
+                  Icons.music_note,
+                  color: t.textPrimary.withOpacity(0.85),
+                  size: 64,
+                ),
+        ),
+      ),
     );
   }
 }
