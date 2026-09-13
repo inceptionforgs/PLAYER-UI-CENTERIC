@@ -67,11 +67,9 @@ class AuthService {
     return _supabase.auth.currentUser;
   }
 
-  Stream<AuthState> get authStateChanges {
-    if (!SupabaseService().isInitialized) {
-      return const Stream<AuthState>.empty();
-    }
-    return _supabase.auth.onAuthStateChange;
+  Stream<AuthState> get authStateChanges async* {
+    await _ready();
+    yield* _supabase.auth.onAuthStateChange;
   }
 
   Future<Profile?> fetchProfile() async {
