@@ -65,6 +65,7 @@ class _MewatiBassButtonState extends State<MewatiBassButton>
   @override
   Widget build(BuildContext context) {
     final s = widget.size;
+    final energy = widget.active ? _energy : 0.0;
     return Opacity(
       opacity: widget.active ? 1 : 0.42,
       child: SizedBox(
@@ -79,18 +80,17 @@ class _MewatiBassButtonState extends State<MewatiBassButton>
                 customBorder: const CircleBorder(),
                 onTap: widget.onPressed,
                 child: CustomPaint(
-                  painter: _WooferPainter(
-                    energy: widget.active ? _energy : 0,
-                  ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: _gold.withOpacity(0.18 + 0.40 * _energy),
-                          blurRadius: 6 + 8 * _energy,
-                        ),
-                      ],
+                  painter: _ConePainter(energy: energy),
+                  child: Center(
+                    child: Text(
+                      'MB',
+                      style: TextStyle(
+                        color: _gold,
+                        fontSize: s * 0.32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                        height: 1,
+                      ),
                     ),
                   ),
                 ),
@@ -103,61 +103,92 @@ class _MewatiBassButtonState extends State<MewatiBassButton>
   }
 }
 
-class _WooferPainter extends CustomPainter {
+class _ConePainter extends CustomPainter {
   final double energy;
 
-  _WooferPainter({required this.energy});
+  _ConePainter({required this.energy});
+
+  static const double _tilt = 0.80;
+  static const Color _gold = Color(0xFFF3D59A);
+  static const Color _goldDeep = Color(0xFFC9A15C);
+  static const Color _dark = Color(0xFF12100C);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final pulse = energy.clamp(0.0, 1.0);
     final c = Offset(size.width / 2, size.height / 2);
-    final r = math.min(size.width, size.height) / 2 - 1.2;
-    final p = energy.clamp(0.0, 1.0);
-    const gold = Color(0xFFF3D59A);
+    final maxRByWidth = size.width / 2 - 1.2;
+    final maxRByHeight = (size.height / 2 - 1.2) / _tilt;
+    final maxR = math.min(maxRByWidth, maxRByHeight);
 
-    canvas.drawCircle(c, r, Paint()..color = const Color(0xFF16100C));
+    Rect ovalRect(double r) => Rect.fromCenter(
+          center: c,
+          width: r * 2,
+          height: r * 2 * _tilt,
+        );
 
-    final rim = Paint()
-      ..color = gold.withOpacity(0.85)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6;
-    canvas.drawCircle(c, r * 0.92, rim);
-
-    final ring = Paint()
-      ..color = gold.withOpacity(0.28 + 0.35 * p)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15;
-    canvas.drawCircle(c, r * (0.74 + 0.02 * p), ring);
-    canvas.drawCircle(c, r * (0.56 + 0.03 * p), ring);
-    canvas.drawCircle(c, r * (0.38 + 0.03 * p), ring);
-
-    canvas.drawCircle(
-      c,
-      r * (0.16 + 0.06 * p),
-      Paint()..color = gold.withOpacity(0.55 + 0.40 * p),
+    canvas.drawOval(
+      ovalRect(maxR),
+      Paint()
+        ..shader = RadialGradient(
+          colors: [_dark.withOpacity(0.97), const Color(0xFF07060A)],
+        ).createShader(ovalRect(maxR)),
     );
 
-    if (p > 0.04) {
-      final wave = Paint()
-        ..color = gold.withOpacity(0.25 + 0.45 * p)
+    canvas.drawOval(
+      ovalRect(maxR * 0.97),
+      Paint()
+        ..color = _gold.withOpacity(0.85)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..strokeCap = StrokeCap.round;
-      for (final dir in [-1.0, 1.0]) {
-        final reach = r * (0.18 + 0.22 * p);
-        final start = Offset(c.dx + dir * r * 0.98, c.dy);
-        canvas.drawArc(
-          Rect.fromCircle(center: start, radius: reach),
-          dir < 0 ? -0.7 : 3.14159 - 0.7,
-          1.4,
-          false,
-          wave,
-        );
-      }
+        ..strokeWidth = 1.4,
+    );
+
+    const pleatFractions = [0.85, 0.71, 0.58, 0.46, 0.35];
+    for (var i = 0; i < pleatFractions.length; i++) {
+      final excursion = 0.02 + i * 0.014;
+      final r = maxR * (pleatFractions[i] + excursion * pulse);
+      final shade =
+          (i.isEven ? _goldDeep : _gold).withOpacity(0.28 + 0.42 * pulse);
+      canvas.drawOval(
+        ovalRect(r),
+        Paint()
+          ..color = shade
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.15,
+      );
     }
+
+    canvas.drawOval(
+      ovalRect(maxR),
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.6),
+          radius: 0.55,
+          colors: [
+            Colors.white.withOpacity(0.09 + 0.06 * pulse),
+            Colors.transparent,
+          ],
+        ).createShader(ovalRect(maxR)),
+    );
+
+    final hubR = maxR * (0.42 + 0.03 * pulse);
+    canvas.drawOval(
+      ovalRect(hubR),
+      Paint()
+        ..shader = RadialGradient(
+          colors: [const Color(0xFF1C1912), _dark],
+        ).createShader(ovalRect(hubR)),
+    );
+    canvas.drawOval(
+      ovalRect(hubR),
+      Paint()
+        ..color = _gold.withOpacity(0.70 + 0.30 * pulse)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _WooferPainter oldDelegate) =>
+  bool shouldRepaint(covariant _ConePainter oldDelegate) =>
       oldDelegate.energy != energy;
 }
