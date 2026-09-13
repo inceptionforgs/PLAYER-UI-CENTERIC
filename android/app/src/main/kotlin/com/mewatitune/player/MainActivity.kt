@@ -1,6 +1,5 @@
 package com.mewatitune.player
 
-import android.app.Activity
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -10,7 +9,10 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaActionSound
 import android.os.Build
+import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -20,7 +22,8 @@ class MainActivity : AudioServiceActivity() {
     private var volumeEvents: EventChannel.EventSink? = null
     private var receiver: BroadcastReceiver? = null
     private var lastAppWriteIndex: Int = -1
-    private var pendingVoice: MethodChannel.Result? = null
+    private var voiceSink: EventChannel.EventSink? = null
+    private var recognizer: SpeechRecognizer? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -118,51 +121,116 @@ class MainActivity : AudioServiceActivity() {
                 }
             })
 
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "mewati.voice/events")
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    voiceSink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    voiceSink = null
+                }
+            })
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mewati.voice/input")
             .setMethodCallHandler { call, result ->
-                if (call.method != "listen") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
-                if (pendingVoice != null) {
-                    result.error("busy", "already listening", null)
-                    return@setMethodCallHandler
-                }
-                val lang = (call.argument<String>("lang") ?: "hi-IN")
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                    )
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
-                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                }
-                try {
-                    pendingVoice = result
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(intent, VOICE_REQ)
-                } catch (e: Exception) {
-                    pendingVoice = null
-                    result.error("unavailable", e.message, null)
+                when (call.method) {
+                    "start" -> startVoice(call.argument<String>("lang") ?: "hi-IN", result)
+                    "stop" -> {
+                        stopVoice()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
                 }
             }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != VOICE_REQ) return
-        val reply = pendingVoice ?: return
-        pendingVoice = null
-        if (resultCode != Activity.RESULT_OK || data == null) {
-            reply.success(null)
+    override fun onDestroy() {
+        stopVoice()
+        super.onDestroy()
+    }
+
+    private fun emit(payload: HashMap<String, Any?>) {
+        runOnUiThread { voiceSink?.success(payload) }
+    }
+
+    private fun startVoice(lang: String, result: MethodChannel.Result) {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            result.error("unavailable", "no recognizer", null)
             return
         }
-        val spoken = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        reply.success(spoken)
+        stopVoice()
+        val rec = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer = rec
+        rec.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                emit(hashMapOf("type" to "ready"))
+            }
+
+            override fun onBeginningOfSpeech() {}
+
+            override fun onRmsChanged(rmsdB: Float) {
+                emit(hashMapOf("type" to "rms", "v" to rmsdB.toDouble()))
+            }
+
+            override fun onBufferReceived(buffer: ByteArray?) {}
+
+            override fun onEndOfSpeech() {
+                emit(hashMapOf("type" to "end"))
+            }
+
+            override fun onError(error: Int) {
+                emit(hashMapOf("type" to "error", "code" to error))
+            }
+
+            override fun onResults(results: Bundle?) {
+                val text = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    ?: ""
+                emit(hashMapOf("type" to "final", "text" to text))
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                val text = partialResults
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    emit(hashMapOf("type" to "partial", "text" to text))
+                }
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+        }
+        try {
+            rec.startListening(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            stopVoice()
+            result.error("unavailable", e.message, null)
+        }
+    }
+
+    private fun stopVoice() {
+        try {
+            recognizer?.stopListening()
+        } catch (_: Exception) {
+        }
+        try {
+            recognizer?.destroy()
+        } catch (_: Exception) {
+        }
+        recognizer = null
     }
 
     private fun keyguardLocked(): Boolean {
@@ -199,9 +267,5 @@ class MainActivity : AudioServiceActivity() {
     private fun systemVolume(am: AudioManager): Double {
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         return am.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max
-    }
-
-    companion object {
-        private const val VOICE_REQ = 9173
     }
 }
