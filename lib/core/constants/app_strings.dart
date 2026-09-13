@@ -26,6 +26,32 @@ class AppStrings {
   static const String navFavorites = 'Favorites';
   static const String navDownloads = 'Downloads';
   static const String navTrending = 'Trending';
+  static const String musicLibrary = 'Music Library';
+  static const String customSongDrawer = 'अपना गाना भरवाएँ';
+  static const String customSongTitleEn = 'Custom Song Request';
+  static const String customSongNameHi = 'नाम';
+  static const String customSongNameEn = 'Name';
+  static const String customSongNameHint =
+      'अपना नाम लिखें / Please enter your name';
+  static const String customSongMobileHi = 'मोबाइल नंबर';
+  static const String customSongMobileEn = 'Mobile no.';
+  static const String customSongMobileHint =
+      'मोबाइल नंबर लिखें / Please enter your mobile no.';
+  static const String customSongPickSingerHi = 'अपनी पसंद का गायक चुनें';
+  static const String customSongPickSingerEn = 'Choose your preferred singer';
+  static const String customSongLengthHi = 'आपको गाने की लंबाई कितनी चाहिए?';
+  static const String customSongLengthEn =
+      'How long would you like the song to be?';
+  static const String customSongLyricsHi =
+      'अगर आपके पास कोई शायरी / शेर / गाने के बोल हैं तो यहाँ डालें';
+  static const String customSongLyricsEn =
+      'If you have any shayari, verse, or song lyrics, enter them here';
+  static const String customSongContinueHi = 'आगे बढ़ें';
+  static const String customSongContinueEn = 'Continue';
+  static const String customSongSendHi = 'अपनी रिक्वेस्ट गायक को भेजें';
+  static const String customSongSendEn = 'Send your request to the singer';
+  static const String customSongSendingHi = 'भेज रहे हैं…';
+  static const String customSongSendingEn = 'Sending…';
 
   static const String noDownloadsYet = 'No downloads yet';
   static const String downloadHint = 'Tap the download icon on any song to save it offline.';
