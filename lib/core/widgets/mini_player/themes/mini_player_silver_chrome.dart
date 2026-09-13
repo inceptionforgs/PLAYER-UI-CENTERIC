@@ -4,17 +4,30 @@ import 'package:flutter/material.dart';
 import '../../../../models/song.dart';
 import '../../../../routes/app_router.dart';
 import '../../../../routes/route_names.dart';
+import '../../../../screens/player/widgets/player_controls/silver_chrome_player_controls.dart';
 import '../../../../screens/search/search_screen.dart';
 import '../../../../screens/search/voice_search_sheet.dart';
 import '../../../../services/app_cache_manager.dart';
+import '../../../../services/cover_color_service.dart';
 import '../../../../core/utils/home_nav.dart';
 import '../../../../core/widgets/hold_mic_button.dart';
 import '../mini_player_data.dart';
 
-class MiniPlayerSilverChrome extends StatelessWidget {
+class MiniPlayerSilverChrome extends StatefulWidget {
   final MiniPlayerData data;
 
   const MiniPlayerSilverChrome({Key? key, required this.data}) : super(key: key);
+
+  @override
+  State<MiniPlayerSilverChrome> createState() => _MiniPlayerSilverChromeState();
+}
+
+class _MiniPlayerSilverChromeState extends State<MiniPlayerSilverChrome> {
+  String? _boundId;
+  String? _boundCover;
+  Color? _artColor;
+
+  MiniPlayerData get data => widget.data;
 
   Future<void> _openVoice(BuildContext context) async {
     final phrase = await VoiceSearchSheet.show(context);
@@ -37,11 +50,56 @@ class MiniPlayerSilverChrome extends StatelessWidget {
     });
   }
 
+  Color? _playAccent() {
+    final src = _artColor;
+    if (src == null) return null;
+    final hsl = HSLColor.fromColor(src);
+    return hsl
+        .withSaturation((hsl.saturation * 1.55).clamp(0.4, 1.0))
+        .withLightness(0.36)
+        .toColor();
+  }
+
+  void _bindSong(Song? song) {
+    if (song == null) {
+      if (_boundId != null || _artColor != null) {
+        setState(() {
+          _boundId = null;
+          _boundCover = null;
+          _artColor = null;
+        });
+      }
+      return;
+    }
+    final same = _boundId == song.id && _boundCover == song.coverImageUrl;
+    if (same && _artColor != null) return;
+
+    final mem = CoverColorService.instance.cached(song.id, song.coverImageUrl);
+    _boundId = song.id;
+    _boundCover = song.coverImageUrl;
+    if (mem != null) {
+      if (_artColor != mem) {
+        _artColor = mem;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+      return;
+    }
+
+    CoverColorService.instance
+        .colorFor(songId: song.id, coverUrl: song.coverImageUrl)
+        .then((c) {
+      if (!mounted || c == null) return;
+      if (_boundId != song.id) return;
+      setState(() => _artColor = c);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final song = data.song is Song ? data.song as Song : null;
-    final isPlaying = data.isPlaying;
-    final isLoading = data.isLoading;
+    _bindSong(song);
     final playerProvider = data.playerProvider;
     final cover = song?.coverImageUrl;
     final singer = song?.singerName ?? '';
@@ -51,9 +109,15 @@ class MiniPlayerSilverChrome extends StatelessWidget {
         : (hasHindi ? song.titleHindi! : song.title);
     final t = data.theme;
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final accent = _playAccent();
+    final barColor = _artColor == null
+        ? t.surface
+        : Color.alphaBlend(_artColor!.withOpacity(0.18), t.surface);
 
-    return ColoredBox(
-      color: t.surface,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      color: barColor,
       child: Padding(
         padding: EdgeInsets.only(bottom: bottom),
         child: Column(
@@ -103,7 +167,9 @@ class MiniPlayerSilverChrome extends StatelessWidget {
                                         widthFactor: pct,
                                         heightFactor: 1,
                                         alignment: Alignment.centerLeft,
-                                        child: ColoredBox(color: t.accent),
+                                        child: ColoredBox(
+                                          color: accent ?? t.accent,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -148,19 +214,26 @@ class MiniPlayerSilverChrome extends StatelessWidget {
                         child: SizedBox(
                           width: 48,
                           height: 48,
-                          child: cover != null && cover.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: cover,
-                                  fit: BoxFit.cover,
-                                  cacheManager: AppCacheManager.instance,
-                                  memCacheWidth: 112,
-                                  memCacheHeight: 112,
-                                )
-                              : ColoredBox(
-                                  color: t.background,
-                                  child:
-                                      Icon(Icons.music_note, color: t.accent),
-                                ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: cover != null && cover.isNotEmpty
+                                ? CachedNetworkImage(
+                                    key: ValueKey(cover),
+                                    imageUrl: cover,
+                                    fit: BoxFit.cover,
+                                    width: 48,
+                                    height: 48,
+                                    cacheManager: AppCacheManager.instance,
+                                    memCacheWidth: 112,
+                                    memCacheHeight: 112,
+                                  )
+                                : ColoredBox(
+                                    key: const ValueKey('empty'),
+                                    color: t.background,
+                                    child: Icon(Icons.music_note,
+                                        color: t.accent),
+                                  ),
+                          ),
                         ),
                       ),
                     ),
@@ -200,25 +273,16 @@ class MiniPlayerSilverChrome extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
-                      tooltip: isPlaying ? 'Pause' : 'Play',
-                      onPressed: isLoading
-                          ? null
-                          : () => playerProvider.togglePlayPause(),
-                      icon: isLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: t.textPrimary,
-                              ),
-                            )
-                          : Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: t.textPrimary,
-                              size: 28,
-                            ),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: SilverChromePlayButton(
+                          size: 28,
+                          iconSize: 15,
+                          accent: accent,
+                        ),
+                      ),
                     ),
                   ] else
                     const Spacer(),
