@@ -422,83 +422,113 @@ class NowPlayingActions extends StatelessWidget {
     required LikesProvider likesProvider,
     required PlayerProvider playerProvider,
   }) {
-    showModalBottomSheet(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: t.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      builder: (sheet) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(
-                    isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
-                    color: isLiked ? const Color(0xFFFFD700) : t.textPrimary,
-                  ),
-                  title: Text(
-                    isLiked
-                        ? 'Unlike  ·  ${formatCount(likeCount)}'
-                        : 'Like  ·  ${formatCount(likeCount)}',
-                    style: TextStyle(
-                        color: t.textPrimary, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    _toggleLike(context, likesProvider, song.id);
-                  },
+      useRootNavigator: true,
+      barrierDismissible: true,
+      barrierLabel: 'More',
+      barrierColor: const Color(0x73000000),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (sheet, _, __) {
+        Widget item({
+          required IconData icon,
+          required Color iconColor,
+          required String label,
+          required VoidCallback onTap,
+        }) {
+          return ListTile(
+            leading: Icon(icon, color: iconColor),
+            title: Text(
+              label,
+              style: TextStyle(
+                color: t.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: onTap,
+          );
+        }
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Material(
+            color: t.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    item(
+                      icon: isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                      iconColor:
+                          isLiked ? const Color(0xFFFFD700) : t.textPrimary,
+                      label: isLiked
+                          ? 'Unlike  ·  ${formatCount(likeCount)}'
+                          : 'Like  ·  ${formatCount(likeCount)}',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        _toggleLike(context, likesProvider, song.id);
+                      },
+                    ),
+                    item(
+                      icon: Icons.shuffle,
+                      iconColor: isShuffleOn ? t.accent : t.textPrimary,
+                      label: isShuffleOn ? 'Shuffle on' : 'Shuffle',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        playerProvider.toggleShuffle();
+                      },
+                    ),
+                    item(
+                      icon: Icons.timer_outlined,
+                      iconColor: isTimerActive ? t.accent : t.textPrimary,
+                      label: 'Sleep timer',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        onTimerTap();
+                      },
+                    ),
+                    item(
+                      icon: Icons.equalizer,
+                      iconColor: t.textPrimary,
+                      label: 'Sound Effect',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        onEqualizerTap();
+                      },
+                    ),
+                    item(
+                      icon: Icons.queue_music,
+                      iconColor: t.textPrimary,
+                      label: 'Playing list',
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        HomeNav.showCurrentSongInList(song.id);
+                      },
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: Icon(Icons.shuffle,
-                      color: isShuffleOn ? t.accent : t.textPrimary),
-                  title: Text(
-                    isShuffleOn ? 'Shuffle on' : 'Shuffle',
-                    style: TextStyle(
-                        color: t.textPrimary, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    playerProvider.toggleShuffle();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.timer_outlined,
-                      color: isTimerActive ? t.accent : t.textPrimary),
-                  title: Text('Sleep timer',
-                      style: TextStyle(
-                          color: t.textPrimary, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    onTimerTap();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.equalizer, color: t.textPrimary),
-                  title: Text('Sound Effect',
-                      style: TextStyle(
-                          color: t.textPrimary, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    onEqualizerTap();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.queue_music, color: t.textPrimary),
-                  title: Text('Playing list',
-                      style: TextStyle(
-                          color: t.textPrimary, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    HomeNav.showCurrentSongInList(song.id);
-                  },
-                ),
-              ],
+              ),
             ),
           ),
+        );
+      },
+      transitionBuilder: (ctx, anim, _, child) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: const Cubic(0.32, 0.72, 0.0, 1.0),
+          reverseCurve: const Cubic(0.45, 0.05, 0.2, 1.0),
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
         );
       },
     );
