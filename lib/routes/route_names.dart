@@ -9,4 +9,6 @@ class RouteNames {
   static const String driveMode = '/drive-mode';
   static const String search = '/search';
   static const String singerOnboarding = '/singer-onboarding';
+  static const String musicLibrary = '/music-library';
+  static const String customSong = '/custom-song';
 }
