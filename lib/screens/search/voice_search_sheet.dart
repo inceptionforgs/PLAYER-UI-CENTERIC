@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -125,6 +126,24 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
     _fail("Didn't catch that. Tap the mic and try again.");
   }
 
+  /// NEW: Checks for an active network connection before we ever touch the
+  /// mic. Android's speech recognizer frequently reports `error_no_match`
+  /// or `error_speech_timeout` instead of `error_network` when connectivity
+  /// is missing or too poor to reach the recognition service, which used to
+  /// surface the misleading "Didn't catch that" message. Checking up front
+  /// lets us show the correct "needs internet" message immediately.
+  Future<bool> _hasConnection() async {
+    try {
+      final result = await Connectivity().checkConnectivity();
+      return result != ConnectivityResult.none;
+    } catch (_) {
+      // If the connectivity check itself fails, don't block voice search
+      // on it — fall through and let speech_to_text's own error handling
+      // (onError/onStatus above) catch any real failure.
+      return true;
+    }
+  }
+
   Future<void> _start() async {
     if (_busy || _closing) return;
     _busy = true;
@@ -136,6 +155,15 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet> {
       _listening = false;
       _level = 0.28;
     });
+
+    // NEW: fail fast with a clear message if there's no connection at all,
+    // instead of letting the mic open and time out with a confusing error.
+    final online = await _hasConnection();
+    if (!mounted) return;
+    if (!online) {
+      _fail('Voice search needs internet. Check your connection.');
+      return;
+    }
 
     final mic = await Permission.microphone.request();
     if (!mounted) return;
