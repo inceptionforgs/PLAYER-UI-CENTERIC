@@ -46,7 +46,8 @@ class _SilverChromeSeekBarState extends State<SilverChromeSeekBar> {
           builder: (context, position, __) {
             final actualPct = duration.inMilliseconds == 0
                 ? 0.0
-                : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+                : (position.inMilliseconds / duration.inMilliseconds)
+                    .clamp(0.0, 1.0);
             final pct = _dragValue ?? actualPct;
 
             return Column(
@@ -56,7 +57,8 @@ class _SilverChromeSeekBarState extends State<SilverChromeSeekBar> {
                   builder: (context, constraints) {
                     final width = constraints.maxWidth;
                     return GestureDetector(
-                      onTapDown: (d) => _updateDrag(d.localPosition.dx, width, duration),
+                      onTapDown: (d) =>
+                          _updateDrag(d.localPosition.dx, width, duration),
                       onTapUp: (_) => _commitDrag(duration),
                       onTapCancel: _cancelDrag,
                       onHorizontalDragUpdate: (d) =>
@@ -65,22 +67,28 @@ class _SilverChromeSeekBarState extends State<SilverChromeSeekBar> {
                       onHorizontalDragCancel: _cancelDrag,
                       child: SizedBox(
                         width: width,
-                        height: 18,
-                        child: Container(
-                          width: width,
-                          height: 18,
-                          clipBehavior: Clip.antiAlias,
-                          alignment: Alignment.centerLeft,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            border: Border.all(color: Colors.white, width: 2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: pct,
-                            heightFactor: 1.0,
-                            child: const ColoredBox(color: Color(0xFFA0A0A0)),
+                        height: 28,
+                        child: Center(
+                          child: SizedBox(
+                            width: width,
+                            height: 8,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ColoredBox(
+                                    color: t.textPrimary.withOpacity(0.25),
+                                  ),
+                                  FractionallySizedBox(
+                                    alignment: Alignment.centerLeft,
+                                    widthFactor: pct,
+                                    heightFactor: 1,
+                                    child: ColoredBox(color: t.textPrimary),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -94,17 +102,19 @@ class _SilverChromeSeekBarState extends State<SilverChromeSeekBar> {
                     Text(
                       position.asCompact,
                       style: TextStyle(
-                        color: t.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        color: t.textPrimary.withOpacity(0.55),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                     Text(
                       duration.asCompact,
                       style: TextStyle(
-                        color: t.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        color: t.textPrimary.withOpacity(0.55),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
