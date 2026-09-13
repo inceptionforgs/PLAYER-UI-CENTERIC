@@ -33,6 +33,19 @@ class _MusicLibraryScreenState extends State<MusicLibraryScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final songs = context.read<SongsProvider>();
+      if (songs.allSongs.isEmpty) songs.loadSongs();
+      final singers = context.read<SingersProvider>();
+      if (singers.allSingers.isEmpty) singers.loadSingers();
+      context.read<FavoritesProvider>().loadFavorites();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.watch<ThemeProvider>().theme;
 
@@ -104,22 +117,50 @@ class _MusicLibraryScreenState extends State<MusicLibraryScreen> {
   }
 }
 
-class _SongList extends StatelessWidget {
+class _SongList extends StatefulWidget {
   final int tab;
 
   const _SongList({required this.tab});
 
+  @override
+  State<_SongList> createState() => _SongListState();
+}
+
+class _SongListState extends State<_SongList> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (widget.tab != HomeNav.songs && widget.tab != HomeNav.trending) return;
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.pixels < _scroll.position.maxScrollExtent - 200) {
+      return;
+    }
+    context.read<SongsProvider>().loadMoreSongs();
+  }
+
   List<Song> _songs(BuildContext context) {
     final all = context.watch<SongsProvider>().allSongs;
-    if (tab == HomeNav.trending) {
+    if (widget.tab == HomeNav.trending) {
       final copy = [...all];
       copy.sort((a, b) => b.playCount.compareTo(a.playCount));
       return copy;
     }
-    if (tab == HomeNav.favorites) {
+    if (widget.tab == HomeNav.favorites) {
       return context.watch<FavoritesProvider>().favoriteSongs;
     }
-    if (tab == HomeNav.downloads) {
+    if (widget.tab == HomeNav.downloads) {
       return context.watch<DownloadsProvider>().downloadedSongsList;
     }
     return all;
@@ -127,15 +168,35 @@ class _SongList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final songsProv = context.watch<SongsProvider>();
     final songs = _songs(context);
-    final currentId = context.select<PlayerProvider, String?>((p) => p.currentSong?.id);
+    final currentId =
+        context.select<PlayerProvider, String?>((p) => p.currentSong?.id);
+    final t = context.watch<ThemeProvider>().theme;
+
+    if (songsProv.isLoading && songs.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (songsProv.errorMessage != null && songs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          songsProv.errorMessage!,
+          style: TextStyle(color: t.textSecondary, fontSize: 13),
+        ),
+      );
+    }
     if (songs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('Empty'),
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Empty',
+          style: TextStyle(color: t.textSecondary, fontSize: 13),
+        ),
       );
     }
     return ListView.builder(
+      controller: _scroll,
       itemCount: songs.length,
       itemBuilder: (context, i) {
         final song = songs[i];
@@ -161,12 +222,29 @@ class _SingerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final singers = [...context.watch<SingersProvider>().allSingers]
+    final prov = context.watch<SingersProvider>();
+    final t = context.watch<ThemeProvider>().theme;
+    if (prov.isLoading && prov.allSingers.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (prov.errorMessage != null && prov.allSingers.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          prov.errorMessage!,
+          style: TextStyle(color: t.textSecondary, fontSize: 13),
+        ),
+      );
+    }
+    final singers = [...prov.allSingers]
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     if (singers.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('Empty'),
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Empty',
+          style: TextStyle(color: t.textSecondary, fontSize: 13),
+        ),
       );
     }
     return ListView.builder(
@@ -211,7 +289,8 @@ class _SingerSongsState extends State<_SingerSongs> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<ThemeProvider>().theme;
-    final currentId = context.select<PlayerProvider, String?>((p) => p.currentSong?.id);
+    final currentId =
+        context.select<PlayerProvider, String?>((p) => p.currentSong?.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -246,14 +325,26 @@ class _SingerSongsState extends State<_SingerSongs> {
           child: FutureBuilder<List<Song>>(
             future: _future,
             builder: (context, snap) {
-              if (!snap.hasData) {
+              if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final songs = snap.data!;
+              if (snap.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    '${snap.error}',
+                    style: TextStyle(color: t.textSecondary, fontSize: 13),
+                  ),
+                );
+              }
+              final songs = snap.data ?? const <Song>[];
               if (songs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Empty'),
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Empty',
+                    style: TextStyle(color: t.textSecondary, fontSize: 13),
+                  ),
                 );
               }
               return ListView.builder(
