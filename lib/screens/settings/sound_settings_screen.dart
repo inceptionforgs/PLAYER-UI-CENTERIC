@@ -160,11 +160,6 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Height-jump fix: previously this label was only
-                        // rendered `if (!locked)`, so switching to/from
-                        // Mewati Bass™ removed a whole line of content and
-                        // shifted everything below it. Now it's always laid
-                        // out and just fades — same box height every time.
                         AnimatedOpacity(
                           duration: const Duration(milliseconds: 220),
                           opacity: locked ? 0 : 1,
@@ -179,11 +174,6 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        // Height-jump fix: one constant height (168) for
-                        // both the bar visualiser and the Mewati Bass™
-                        // cone — previously locked used 236, causing the
-                        // whole card (and everything below it) to jump by
-                        // 68px whenever this preset was picked.
                         SizedBox(
                           height: 168,
                           child: locked
@@ -429,53 +419,63 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        return CustomPaint(
-          painter: _SpeakerConePainter(energy: _energy),
-          child: const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'MEWATI',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2.2,
-                    height: 1.1,
+        return LayoutBuilder(
+          builder: (context, box) {
+            final maxRByWidth = box.maxWidth / 2 - 6;
+            final maxRByHeight = (box.maxHeight / 2 - 6) / 0.80;
+            final maxR = math.min(maxRByWidth, maxRByHeight);
+            final hub = maxR * 0.32 * 2 * 0.82;
+
+            return CustomPaint(
+              painter: _SpeakerConePainter(energy: _energy),
+              child: Center(
+                child: SizedBox(
+                  width: hub,
+                  height: hub * 0.80,
+                  child: const FittedBox(
+                    fit: BoxFit.contain,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'MEWATI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            height: 1.05,
+                          ),
+                        ),
+                        Text(
+                          'BASS™',
+                          style: TextStyle(
+                            color: Color(0xFFF3D59A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                            height: 1.05,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                Text(
-                  'BASS™',
-                  style: TextStyle(
-                    color: Color(0xFFF3D59A),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 3.0,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 }
 
-/// Draws the Mewati Bass™ lock visual as a subwoofer cone viewed at an
-/// angle — concentric accordion-fold "pleats" radiating from a center
-/// dust-cap hub (where the brand text sits), flexing outward with the
-/// live bass-energy stream instead of the old flat rings + side sound
-/// waves. Reference: real subwoofer cone at rest vs. under bass load —
-/// the pleats visibly move, the whole diaphragm "breathes".
 class _SpeakerConePainter extends CustomPainter {
   final double energy;
 
   _SpeakerConePainter({required this.energy});
 
-  static const double _tilt = 0.80; // vertical squash = angled-view look
+  static const double _tilt = 0.80;
   static const Color _gold = Color(0xFFF3D59A);
   static const Color _goldDeep = Color(0xFFC9A15C);
   static const Color _dark = Color(0xFF12100C);
@@ -484,8 +484,6 @@ class _SpeakerConePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final pulse = energy.clamp(0.0, 1.0);
     final c = Offset(size.width / 2, size.height / 2);
-
-    // Fit the tilted oval fully inside whatever box we're given.
     final maxRByWidth = size.width / 2 - 6;
     final maxRByHeight = (size.height / 2 - 6) / _tilt;
     final maxR = math.min(maxRByWidth, maxRByHeight);
@@ -496,7 +494,6 @@ class _SpeakerConePainter extends CustomPainter {
           height: r * 2 * _tilt,
         );
 
-    // Cone body — dark backdrop with a soft radial falloff for depth.
     canvas.drawOval(
       ovalRect(maxR),
       Paint()
@@ -505,7 +502,6 @@ class _SpeakerConePainter extends CustomPainter {
         ).createShader(ovalRect(maxR)),
     );
 
-    // Outer rim — the cone's basket edge.
     canvas.drawOval(
       ovalRect(maxR * 0.97),
       Paint()
@@ -514,9 +510,6 @@ class _SpeakerConePainter extends CustomPainter {
         ..strokeWidth = 2.2,
     );
 
-    // Accordion pleats — concentric rings standing in for the cone's
-    // fold lines. Inner pleats flex more than outer ones, same as a
-    // real cone's excursion pattern (biggest movement near the hub).
     const pleatFractions = [0.85, 0.71, 0.58, 0.46, 0.35];
     for (var i = 0; i < pleatFractions.length; i++) {
       final excursion = 0.02 + i * 0.014;
@@ -532,8 +525,6 @@ class _SpeakerConePainter extends CustomPainter {
       );
     }
 
-    // Specular highlight, top-left — mimics light catching the angled
-    // cone surface in the reference photos.
     canvas.drawOval(
       ovalRect(maxR),
       Paint()
@@ -547,8 +538,6 @@ class _SpeakerConePainter extends CustomPainter {
         ).createShader(ovalRect(maxR)),
     );
 
-    // Center hub (dust cap) — where the Mewati Bass™ text sits. Pulses
-    // slightly with the bass so the "hub" itself feels alive.
     final hubR = maxR * (0.32 + 0.03 * pulse);
     canvas.drawOval(
       ovalRect(hubR),
