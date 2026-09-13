@@ -16,6 +16,14 @@ import 'services/supabase_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('Optional .env not loaded: $e');
+  }
+
+  await _initSupabase();
+
   final downloadsProvider = DownloadsProvider();
   final authProvider = AuthProvider();
 
@@ -26,27 +34,17 @@ Future<void> main() async {
     ),
   );
 
-  unawaited(_initializeApp(downloadsProvider));
+  unawaited(_initializeRest(downloadsProvider));
 }
 
-Future<void> _initializeApp(
-  DownloadsProvider downloadsProvider,
-) async {
+Future<void> _initializeRest(DownloadsProvider downloadsProvider) async {
   try {
-    try {
-      await dotenv.load(fileName: '.env');
-    } catch (e) {
-      debugPrint('Optional .env not loaded: $e');
-    }
-
     await Future.wait<void>([
       _initJustAudioBackground(),
-      _initSupabase(),
       _initLocalCache(),
       _initDownloads(downloadsProvider),
       _initSentry(),
     ]);
-
     DebugLogService().info('App initialized successfully');
   } catch (e) {
     DebugLogService().error('App initialization failed: $e');
