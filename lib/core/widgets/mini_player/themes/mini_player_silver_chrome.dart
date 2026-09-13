@@ -255,6 +255,7 @@ class _MiniPlayerSilverChromeState extends State<MiniPlayerSilverChrome> {
                                 color: t.textPrimary,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
+                                fontStyle: FontStyle.italic,
                                 decoration: TextDecoration.none,
                               ),
                             ),
