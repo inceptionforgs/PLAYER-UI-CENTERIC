@@ -3,6 +3,15 @@ import 'package:provider/provider.dart';
 import '../../../../providers/player_provider.dart';
 import '../../../../providers/theme_provider.dart';
 
+Color _ink(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  if (hsl.lightness <= 0.42) return c;
+  return hsl
+      .withSaturation((hsl.saturation < 0.4 ? 0.55 : hsl.saturation).clamp(0.4, 1.0))
+      .withLightness(0.34)
+      .toColor();
+}
+
 class SilverChromePlayButton extends StatelessWidget {
   final double size;
   final double iconSize;
@@ -22,7 +31,7 @@ class SilverChromePlayButton extends StatelessWidget {
     final player = context.watch<PlayerProvider>();
     final t = context.watch<ThemeProvider>().theme;
     final isLoading = context.select<PlayerProvider, bool>((p) => p.isLoading);
-    final playColor = accent ?? t.textPrimary;
+    final playColor = _ink(accent ?? t.accent);
     final ring = (size / 66) * 3;
 
     final icon = decorative
