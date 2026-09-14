@@ -31,6 +31,7 @@ dependencies:
   connectivity_plus: ^5.0.2
   permission_handler: ^11.3.1
   speech_to_text: ^7.0.0
+  audio_session: ^0.1.24
   palette_generator: ^0.3.3+7
   wakelock_plus: ^1.2.8
   camera: ^0.11.0+2
