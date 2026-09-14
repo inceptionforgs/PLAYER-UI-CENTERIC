@@ -3,6 +3,7 @@ import 'package:mewati_tune_player/config/media_config.dart';
 
 void main() {
   const host = 'vryngmkjnposksoaknik.supabase.co';
+  const r2Host = 'pub-31576cb95c8740c8816316f85181ecdd.r2.dev';
 
   group('MediaConfig.isAllowedAudioUrl', () {
     test('allows https URL on the exact CDN host', () {
@@ -17,6 +18,15 @@ void main() {
     test('allows http URL on the exact CDN host (host check only)', () {
       expect(
         MediaConfig.isAllowedAudioUrl('http://$host/audio/song.mp3'),
+        isTrue,
+      );
+    });
+
+    test('allows Cloudflare R2 public host', () {
+      expect(
+        MediaConfig.isAllowedAudioUrl(
+          'https://$r2Host/testing/testing_songs/Mewati/mewati%20song%20100.mp3',
+        ),
         isTrue,
       );
     });
@@ -75,6 +85,15 @@ void main() {
     test('rejects a CDN subdomain (prefix spoof)', () {
       expect(
         MediaConfig.isAllowedAudioUrl('https://cdn.$host/song.mp3'),
+        isFalse,
+      );
+    });
+
+    test('rejects a different R2 subdomain', () {
+      expect(
+        MediaConfig.isAllowedAudioUrl(
+          'https://pub-other.r2.dev/testing/song.mp3',
+        ),
         isFalse,
       );
     });
