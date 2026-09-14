@@ -37,6 +37,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
   bool _failed = false;
   bool _busy = false;
   bool _closing = false;
+  bool _overlayTried = false;
   double _level = 0.22;
   Timer? _watch;
   StreamSubscription<VoiceEvent>? _events;
@@ -66,14 +67,14 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
 
   void _armWatch() {
     _watch?.cancel();
-    _watch = Timer(const Duration(seconds: 12), () {
+    _watch = Timer(const Duration(seconds: 18), () {
       if (!mounted || _closing) return;
       _busy = false;
       VoiceInputService.stop();
       if (_speech.isListening) {
         _speech.stop();
       }
-      _fail("Didn't catch that. Tap the mic and try again.");
+      _useOverlayOrFail();
     });
   }
 
@@ -83,6 +84,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
     _busy = false;
     _listening = false;
     _idle.stop();
+    VoiceInputService.stop();
     setState(() {
       _failed = true;
       _status = message;
@@ -107,6 +109,23 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
     } catch (_) {}
   }
 
+  Future<void> _useOverlayOrFail() async {
+    if (_closing || !mounted) return;
+    if (_overlayTried || !Platform.isAndroid) {
+      _fail("Didn't catch that. Tap the mic and try again.");
+      return;
+    }
+    _overlayTried = true;
+    await VoiceInputService.stop();
+    final spoken = await VoiceInputService.listenOverlay(lang: 'hi-IN');
+    if (!mounted || _closing) return;
+    if (spoken != null && spoken.isNotEmpty) {
+      _popWith(spoken);
+      return;
+    }
+    _fail("Didn't catch that. Tap the mic and try again.");
+  }
+
   void _onNative(VoiceEvent e) {
     if (!mounted || _closing) return;
     switch (e.type) {
@@ -116,18 +135,30 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
         break;
       case 'partial':
         final t = e.text?.trim() ?? '';
-        if (t.isNotEmpty) setState(() => _status = t);
+        if (t.isNotEmpty) {
+          _watch?.cancel();
+          _armWatch();
+          setState(() => _status = t);
+        }
         break;
       case 'final':
         final t = e.text?.trim() ?? '';
         if (t.isNotEmpty) {
           _popWith(t);
         } else {
-          _fail("Didn't catch that. Tap the mic and try again.");
+          _useOverlayOrFail();
         }
         break;
       case 'error':
-        _fail("Didn't catch that. Tap the mic and try again.");
+        if (e.code == 9) {
+          _fail('Microphone is blocked. Allow it in Settings.');
+          return;
+        }
+        if (e.code == 2 || e.code == 1) {
+          _fail('Voice search needs internet. Check your connection.');
+          return;
+        }
+        _useOverlayOrFail();
         break;
     }
   }
@@ -135,6 +166,7 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
   Future<void> _start() async {
     if (_closing || _busy) return;
     _busy = true;
+    _overlayTried = false;
     _watch?.cancel();
     await _events?.cancel();
     setState(() {
@@ -162,15 +194,15 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
 
       await _hushPlayer();
       if (!mounted || _closing) return;
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!mounted || _closing) return;
 
       if (Platform.isAndroid) {
         _events = VoiceInputService.events().listen(_onNative);
         final ok = await VoiceInputService.start(lang: 'hi-IN');
         if (!mounted || _closing) return;
         if (!ok) {
-          _fail(
-            'Voice search is not available on this phone. Install Google app.',
-          );
+          await _useOverlayOrFail();
           return;
         }
         return;
@@ -205,10 +237,10 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
       );
     } on TimeoutException {
       if (!mounted || _closing) return;
-      _fail("Didn't catch that. Tap the mic and try again.");
+      await _useOverlayOrFail();
     } catch (_) {
       if (!mounted || _closing) return;
-      _fail('Voice search is not available on this phone. Install Google app.');
+      await _useOverlayOrFail();
     } finally {
       _busy = false;
     }
@@ -267,7 +299,8 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
                 animation: _idle,
                 builder: (context, _) {
                   final breathe = _listening ? 0.12 + 0.10 * _idle.value : 0;
-                  final energy = _listening ? (_level + breathe).clamp(0.18, 1.0) : 0.0;
+                  final energy =
+                      _listening ? (_level + breathe).clamp(0.18, 1.0) : 0.0;
                   return SizedBox(
                     width: 220,
                     height: 220,
