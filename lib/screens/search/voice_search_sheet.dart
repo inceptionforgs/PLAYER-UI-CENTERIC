@@ -173,6 +173,8 @@ class _VoiceSearchSheetState extends State<VoiceSearchSheet>
 
       if (Platform.isAndroid) {
         _events = VoiceInputService.events().listen(_onNative);
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        if (!mounted || _closing) return;
         final ok = await VoiceInputService.start(lang: 'hi-IN');
         if (!mounted || _closing) return;
         if (!ok) {
