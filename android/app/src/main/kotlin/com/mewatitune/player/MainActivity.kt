@@ -1,15 +1,20 @@
 package com.mewatitune.player
 
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaActionSound
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -24,6 +29,13 @@ class MainActivity : AudioServiceActivity() {
     private var lastAppWriteIndex: Int = -1
     private var voiceSink: EventChannel.EventSink? = null
     private var recognizer: SpeechRecognizer? = null
+    private var voiceSession = false
+    private var voiceRestarts = 0
+    private var lastVoiceIntent: Intent? = null
+    private var lastVoiceLang = "hi-IN"
+    private var pendingOverlay: MethodChannel.Result? = null
+    private var focusRequest: AudioFocusRequest? = null
+    private val voiceHandler = Handler(Looper.getMainLooper())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -140,6 +152,7 @@ class MainActivity : AudioServiceActivity() {
                         stopVoice()
                         result.success(null)
                     }
+                    "overlay" -> startOverlay(call.argument<String>("lang") ?: "hi-IN", result)
                     else -> result.notImplemented()
                 }
             }
@@ -150,8 +163,78 @@ class MainActivity : AudioServiceActivity() {
         super.onDestroy()
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != VOICE_REQ) return
+        val reply = pendingOverlay ?: return
+        pendingOverlay = null
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            reply.success(null)
+            return
+        }
+        val spoken = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        reply.success(spoken)
+    }
+
     private fun emit(payload: HashMap<String, Any?>) {
         runOnUiThread { voiceSink?.success(payload) }
+    }
+
+    private fun takeMicFocus() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build(),
+                    )
+                    .build()
+                focusRequest = req
+                am.requestAudioFocus(req)
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+                )
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun dropMicFocus() {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                focusRequest?.let { am.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+        } catch (_: Exception) {
+        }
+        focusRequest = null
+    }
+
+    private fun speechIntent(lang: String): Intent {
+        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+        }
     }
 
     private fun startVoice(lang: String, result: MethodChannel.Result) {
@@ -159,7 +242,27 @@ class MainActivity : AudioServiceActivity() {
             result.error("unavailable", "no recognizer", null)
             return
         }
-        stopVoice()
+        lastVoiceLang = lang
+        voiceRestarts = 0
+        voiceSession = true
+        takeMicFocus()
+        bindRecognizer()
+        val intent = speechIntent(lang)
+        lastVoiceIntent = intent
+        try {
+            recognizer?.startListening(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            stopVoice()
+            result.error("unavailable", e.message, null)
+        }
+    }
+
+    private fun bindRecognizer() {
+        try {
+            recognizer?.destroy()
+        } catch (_: Exception) {
+        }
         val rec = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = rec
         rec.setRecognitionListener(object : RecognitionListener {
@@ -175,20 +278,37 @@ class MainActivity : AudioServiceActivity() {
 
             override fun onBufferReceived(buffer: ByteArray?) {}
 
-            override fun onEndOfSpeech() {
-                emit(hashMapOf("type" to "end"))
-            }
+            override fun onEndOfSpeech() {}
 
             override fun onError(error: Int) {
-                emit(hashMapOf("type" to "error", "code" to error))
+                if (!voiceSession) return
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH,
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+                    SpeechRecognizer.ERROR_CLIENT,
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+                    -> restartQuietly()
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                        emit(hashMapOf("type" to "error", "code" to error))
+                    SpeechRecognizer.ERROR_NETWORK,
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+                    -> emit(hashMapOf("type" to "error", "code" to error))
+                    else -> restartQuietly()
+                }
             }
 
             override fun onResults(results: Bundle?) {
                 val text = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
+                    ?.trim()
                     ?: ""
-                emit(hashMapOf("type" to "final", "text" to text))
+                if (text.isNotEmpty()) {
+                    emit(hashMapOf("type" to "final", "text" to text))
+                    voiceSession = false
+                } else {
+                    restartQuietly()
+                }
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -202,26 +322,51 @@ class MainActivity : AudioServiceActivity() {
 
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+    }
+
+    private fun restartQuietly() {
+        if (!voiceSession) return
+        if (voiceRestarts >= 5) {
+            emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_NO_MATCH))
+            return
         }
+        voiceRestarts += 1
+        val intent = lastVoiceIntent ?: speechIntent(lastVoiceLang)
+        lastVoiceIntent = intent
+        voiceHandler.postDelayed({
+            if (!voiceSession) return@postDelayed
+            try {
+                if (voiceRestarts >= 2) {
+                    bindRecognizer()
+                }
+                recognizer?.startListening(intent)
+            } catch (_: Exception) {
+                emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_CLIENT))
+            }
+        }, 220)
+    }
+
+    private fun startOverlay(lang: String, result: MethodChannel.Result) {
+        if (pendingOverlay != null) {
+            result.error("busy", "already listening", null)
+            return
+        }
+        takeMicFocus()
+        val intent = speechIntent(lang)
         try {
-            rec.startListening(intent)
-            result.success(true)
+            pendingOverlay = result
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, VOICE_REQ)
         } catch (e: Exception) {
-            stopVoice()
+            pendingOverlay = null
+            dropMicFocus()
             result.error("unavailable", e.message, null)
         }
     }
 
     private fun stopVoice() {
+        voiceSession = false
+        voiceHandler.removeCallbacksAndMessages(null)
         try {
             recognizer?.stopListening()
         } catch (_: Exception) {
@@ -231,6 +376,7 @@ class MainActivity : AudioServiceActivity() {
         } catch (_: Exception) {
         }
         recognizer = null
+        dropMicFocus()
     }
 
     private fun keyguardLocked(): Boolean {
@@ -267,5 +413,9 @@ class MainActivity : AudioServiceActivity() {
     private fun systemVolume(am: AudioManager): Double {
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         return am.getStreamVolume(AudioManager.STREAM_MUSIC).toDouble() / max
+    }
+
+    companion object {
+        private const val VOICE_REQ = 9173
     }
 }
