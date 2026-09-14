@@ -194,7 +194,7 @@ class MainActivity : AudioServiceActivity() {
         val am = getSystemService(AUDIO_SERVICE) as AudioManager
         try {
             if (Build.VERSION.SDK_INT >= 26) {
-                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
                     .setAudioAttributes(
                         AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_ASSISTANT)
@@ -209,7 +209,7 @@ class MainActivity : AudioServiceActivity() {
                 am.requestAudioFocus(
                     null,
                     AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
                 )
             }
         } catch (_: Exception) {
@@ -257,13 +257,15 @@ class MainActivity : AudioServiceActivity() {
         bindRecognizer()
         val intent = speechIntent(lang)
         lastVoiceIntent = intent
-        try {
-            recognizer?.startListening(intent)
-            result.success(true)
-        } catch (e: Exception) {
-            stopVoice()
-            result.error("unavailable", e.message, null)
-        }
+        voiceHandler.postDelayed({
+            if (!voiceSession) return@postDelayed
+            try {
+                recognizer?.startListening(intent)
+            } catch (_: Exception) {
+                emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_CLIENT))
+            }
+        }, 400)
+        result.success(true)
     }
 
     private fun bindRecognizer() {
@@ -334,24 +336,16 @@ class MainActivity : AudioServiceActivity() {
 
     private fun restartQuietly() {
         if (!voiceSession) return
-        if (voiceRestarts >= 2) {
-            emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_NO_MATCH))
-            return
-        }
-        voiceRestarts += 1
         val intent = lastVoiceIntent ?: speechIntent(lastVoiceLang)
         lastVoiceIntent = intent
         voiceHandler.postDelayed({
             if (!voiceSession) return@postDelayed
             try {
-                if (voiceRestarts >= 2) {
-                    bindRecognizer()
-                }
+                bindRecognizer()
                 recognizer?.startListening(intent)
             } catch (_: Exception) {
-                emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_CLIENT))
             }
-        }, 220)
+        }, 400)
     }
 
     private fun startOverlay(lang: String, result: MethodChannel.Result) {
