@@ -1,3 +1,5 @@
+import 'package:audio_session/audio_session.dart';
+
 import 'player_service.dart';
 import 'voice_input_service.dart';
 
@@ -18,8 +20,12 @@ class VoiceAudioGate {
         await player.pause();
       } catch (_) {}
     }
+    try {
+      final session = await AudioSession.instance;
+      await session.setActive(false);
+    } catch (_) {}
     await VoiceInputService.releasePlayback();
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
     _held = true;
   }
 
@@ -28,6 +34,10 @@ class VoiceAudioGate {
     _held = false;
     await VoiceInputService.stop();
     await VoiceInputService.restorePlayback();
+    try {
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+    } catch (_) {}
     if (_wasPlaying) {
       _wasPlaying = false;
       try {
