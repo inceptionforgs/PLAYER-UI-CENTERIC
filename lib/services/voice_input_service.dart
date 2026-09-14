@@ -44,4 +44,18 @@ class VoiceInputService {
       await _m.invokeMethod('stop');
     } catch (_) {}
   }
+
+  static Future<String?> listenOverlay({String lang = 'hi-IN'}) async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final text = await _m
+          .invokeMethod<String>('overlay', {'lang': lang})
+          .timeout(const Duration(seconds: 25));
+      final t = text?.trim();
+      if (t == null || t.isEmpty) return null;
+      return t;
+    } catch (_) {
+      return null;
+    }
+  }
 }
