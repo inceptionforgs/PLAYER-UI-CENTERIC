@@ -45,17 +45,17 @@ class VoiceInputService {
     } catch (_) {}
   }
 
-  static Future<String?> listenOverlay({String lang = 'hi-IN'}) async {
-    if (!Platform.isAndroid) return null;
+  static Future<void> releasePlayback() async {
+    if (!Platform.isAndroid) return;
     try {
-      final text = await _m
-          .invokeMethod<String>('overlay', {'lang': lang})
-          .timeout(const Duration(seconds: 25));
-      final t = text?.trim();
-      if (t == null || t.isEmpty) return null;
-      return t;
-    } catch (_) {
-      return null;
-    }
+      await _m.invokeMethod('releasePlayback');
+    } catch (_) {}
+  }
+
+  static Future<void> restorePlayback() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _m.invokeMethod('restorePlayback');
+    } catch (_) {}
   }
 }
