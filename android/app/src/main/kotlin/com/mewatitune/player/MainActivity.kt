@@ -152,6 +152,14 @@ class MainActivity : AudioServiceActivity() {
                         stopVoice()
                         result.success(null)
                     }
+                    "releasePlayback" -> {
+                        takeMicFocus()
+                        result.success(true)
+                    }
+                    "restorePlayback" -> {
+                        dropMicFocus()
+                        result.success(true)
+                    }
                     "overlay" -> startOverlay(call.argument<String>("lang") ?: "hi-IN", result)
                     else -> result.notImplemented()
                 }
@@ -326,7 +334,7 @@ class MainActivity : AudioServiceActivity() {
 
     private fun restartQuietly() {
         if (!voiceSession) return
-        if (voiceRestarts >= 5) {
+        if (voiceRestarts >= 2) {
             emit(hashMapOf("type" to "error", "code" to SpeechRecognizer.ERROR_NO_MATCH))
             return
         }
