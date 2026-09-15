@@ -107,7 +107,7 @@ class _JustAudioBackgroundPlugin extends JustAudioPlatform {
     _platform = JustAudioPlatform.instance;
     JustAudioPlatform.instance = _JustAudioBackgroundPlugin();
     _audioHandler = await AudioService.init(
-      builder: () => SwitchAudioHandler(BaseAudioHandler()),
+      builder: () => SwitchAudioHandler(_playerAudioHandler),
       config: AudioServiceConfig(
         androidResumeOnClick: androidResumeOnClick,
         androidNotificationChannelId: androidNotificationChannelId,
@@ -580,7 +580,14 @@ class _PlayerAudioHandler extends BaseAudioHandler
   void _updateQueue() {
     assert(sequence.every((source) => source.tag is MediaItem),
         'Error : When using just_audio_background, you should always set a MediaItem tag on every AudioSource. See AudioSource.uri documentation for more information.');
-    queue.add(sequence.map((source) => source.tag as MediaItem).toList());
+    final items =
+        sequence.map((source) => source.tag as MediaItem).toList();
+    queue.add(items);
+    if (index != null && index! >= 0 && index! < items.length) {
+      mediaItem.add(items[index!]);
+    } else if (items.isNotEmpty) {
+      mediaItem.add(items.first);
+    }
   }
 
   void _updateShuffleIndices() {
@@ -628,6 +635,56 @@ class _PlayerAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToQueueItem(int index) async {
     (await _player).seek(SeekRequest(position: Duration.zero, index: index));
+  }
+
+  @override
+  Future<List<MediaItem>> getChildren(String parentMediaId,
+      [Map<String, dynamic>? options]) async {
+    if (parentMediaId == AudioService.browsableRootId ||
+        parentMediaId == 'root') {
+      return List<MediaItem>.from(queue.nvalue ?? const <MediaItem>[]);
+    }
+    return const [];
+  }
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    for (final item in currentQueue) {
+      if (item.id == mediaId) return item;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<MediaItem>> search(String query,
+      [Map<String, dynamic>? extras]) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return List<MediaItem>.from(currentQueue);
+    return currentQueue.where((item) {
+      return item.title.toLowerCase().contains(q) ||
+          (item.artist?.toLowerCase().contains(q) ?? false) ||
+          (item.album?.toLowerCase().contains(q) ?? false);
+    }).toList();
+  }
+
+  @override
+  Future<void> playFromMediaId(String mediaId,
+      [Map<String, dynamic>? extras]) async {
+    final i = currentQueue.indexWhere((item) => item.id == mediaId);
+    if (i < 0) return;
+    await skipToQueueItem(i);
+    await play();
+  }
+
+  @override
+  Future<void> playFromSearch(String query,
+      [Map<String, dynamic>? extras]) async {
+    final results = await search(query, extras);
+    if (results.isNotEmpty) {
+      await playFromMediaId(results.first.id, extras);
+    } else if (currentQueue.isNotEmpty) {
+      await play();
+    }
   }
 
   @override
