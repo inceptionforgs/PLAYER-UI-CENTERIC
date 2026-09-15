@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_strings.dart';
 import 'core/constants/app_theme.dart';
@@ -144,7 +145,15 @@ class _MewatiTunePlayerAppState extends State<MewatiTunePlayerApp>
         ),
         ChangeNotifierProvider<LikesProvider>.value(value: _likesProvider),
         ChangeNotifierProvider(create: (_) => SleepTimerProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final theme = ThemeProvider();
+          JustAudioBackground.mewatiBassIsOn = () => theme.mewatiBassOn;
+          JustAudioBackground.onToggleMewatiBass = () async {
+            await theme.toggleMewatiBass();
+            return theme.mewatiBassOn;
+          };
+          return theme;
+        }),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
