@@ -105,7 +105,7 @@ class _BassButtonPainter extends CustomPainter {
   });
 
   // LOCKED layout — do not retune without owner.
-  static const _gold = Color(0xFFD4A017);
+  static const _gold = Color(0xFFD4AF37);
   static const _blue = Color(0xFF2F6BFF);
   static const _gray = Color(0xFFB8B8B8);
   static const _ink = Color(0xFF1A1208);
