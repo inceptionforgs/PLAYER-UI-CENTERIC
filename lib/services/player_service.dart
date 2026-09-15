@@ -140,10 +140,15 @@ class PlayerService {
     final mediaItem = MediaItem(
       id: song.id,
       title: song.title,
+      album: 'Mewati Tune',
       artist: song.singerName ?? 'Mewati Artist',
+      duration: (song.duration != null && song.duration! > 0)
+          ? Duration(seconds: song.duration!)
+          : null,
       artUri: (song.coverImageUrl != null && song.coverImageUrl!.isNotEmpty)
           ? Uri.tryParse(song.coverImageUrl!)
           : null,
+      playable: true,
     );
     final localPath = localPaths[song.id];
     if (localPath != null) {
