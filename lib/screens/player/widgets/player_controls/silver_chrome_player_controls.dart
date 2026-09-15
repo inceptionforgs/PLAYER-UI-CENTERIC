@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import '../../../../providers/player_provider.dart';
 import '../../../../providers/theme_provider.dart';
@@ -102,14 +103,42 @@ class SilverChromePlayerControls extends StatelessWidget {
 
   const SilverChromePlayerControls({Key? key, this.accent}) : super(key: key);
 
+  void _cycleRepeat(PlayerProvider player) {
+    final current = player.loopMode;
+    final next = current == LoopMode.off
+        ? LoopMode.all
+        : current == LoopMode.all
+            ? LoopMode.one
+            : LoopMode.off;
+    player.setLoopMode(next);
+  }
+
   @override
   Widget build(BuildContext context) {
     final playerProvider = context.watch<PlayerProvider>();
     final t = context.watch<ThemeProvider>().theme;
+    final shuffleOn = playerProvider.shuffleMode;
+    final loop = playerProvider.loopMode;
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        Expanded(
+          child: Center(
+            child: Semantics(
+              button: true,
+              label: shuffleOn ? 'Shuffle on' : 'Shuffle',
+              child: IconButton(
+                icon: Icon(
+                  Icons.shuffle,
+                  color: shuffleOn ? t.accent : t.textPrimary,
+                  size: 28,
+                ),
+                tooltip: shuffleOn ? 'Shuffle on' : 'Shuffle',
+                onPressed: () => playerProvider.toggleShuffle(),
+              ),
+            ),
+          ),
+        ),
         Semantics(
           button: true,
           label: 'Previous',
@@ -123,9 +152,9 @@ class SilverChromePlayerControls extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 36),
+        const SizedBox(width: 24),
         SilverChromePlayButton(accent: accent),
-        const SizedBox(width: 36),
+        const SizedBox(width: 24),
         Semantics(
           button: true,
           label: 'Next',
@@ -136,6 +165,31 @@ class SilverChromePlayerControls extends StatelessWidget {
               icon: Icon(Icons.skip_next, color: t.textPrimary, size: 50),
               padding: EdgeInsets.zero,
               onPressed: () => playerProvider.next(),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: Semantics(
+              button: true,
+              label: loop == LoopMode.one
+                  ? 'Repeat one'
+                  : loop == LoopMode.all
+                      ? 'Repeat all'
+                      : 'Repeat off',
+              child: IconButton(
+                icon: Icon(
+                  loop == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+                  color: loop != LoopMode.off ? t.accent : t.textPrimary,
+                  size: 28,
+                ),
+                tooltip: loop == LoopMode.one
+                    ? 'Repeat one'
+                    : loop == LoopMode.all
+                        ? 'Repeat all'
+                        : 'Repeat',
+                onPressed: () => _cycleRepeat(playerProvider),
+              ),
             ),
           ),
         ),
