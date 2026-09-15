@@ -1,561 +1,95 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/constants/app_themes.dart';
-import '../../providers/theme_provider.dart';
-import '../../services/bass_energy.dart';
-import '../../services/equalizer_service.dart';
-import '../../services/eq_presets.dart';
-
-class SoundSettingsScreen extends StatefulWidget {
-  const SoundSettingsScreen({super.key});
-
-  @override
-  State<SoundSettingsScreen> createState() => _SoundSettingsScreenState();
-}
-
-class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
-  static const _panelTop = Color(0xFFE67A2E);
-  static const _panelBottom = Color(0xFFC45A16);
-  static const _barFill = Color(0xFFF3D59A);
-  static const _barEdge = Color(0xFFE8C56E);
-  static const _labels = [
-    '100Hz',
-    '300Hz',
-    '1kHz',
-    '3kHz',
-    '10kHz',
-  ];
-
-  String? _editId;
-  List<double>? _editGains;
-
-  static List<double> visualGains(EqPreset p) {
-    if (!p.advanced) {
-      final g = p.gains;
-      return [
-        g.isNotEmpty ? g[0] : 0,
-        g.length > 1 ? g[1] : 0,
-        g.length > 2 ? g[2] : 0,
-        g.length > 3 ? g[3] : 0,
-        g.length > 4 ? g[4] : 0,
-      ];
-    }
-    final g = p.gains;
-    final v = <double>[
-      g.length > 1 ? g[1] : 0,
-      g.length > 3 ? g[3] : 0,
-      g.length > 5 ? g[5] : 0,
-      g.length > 7 ? g[7] : 0,
-      g.length > 9 ? g[9] : 0,
-    ];
-    v[0] = (v[0] + p.truBass * 12).clamp(EqPresets.minDb, EqPresets.maxDb);
-    v[1] = (v[1] + p.truBass * 8).clamp(EqPresets.minDb, EqPresets.maxDb);
-    v[3] = (v[3] + p.truTreble * 6).clamp(EqPresets.minDb, EqPresets.maxDb);
-    v[4] = (v[4] + p.air * 0.6 + p.truTreble * 10)
-        .clamp(EqPresets.minDb, EqPresets.maxDb);
-    return v;
-  }
-
-  static int barsFor(double db) {
-    return (((db + 15) / 30) * 18 + 2).round().clamp(2, 20);
-  }
-
-  List<double> _gainsFor(EqPreset p) {
-    if (p.id == 'mewati-bass') return visualGains(p);
-    if (_editId == p.id && _editGains != null) return _editGains!;
-    return visualGains(p);
-  }
-
-  void _setBand(EqPreset preset, int index, double db) {
-    if (preset.id == 'mewati-bass') return;
-    final next = List<double>.from(_gainsFor(preset));
-    next[index] = db.clamp(EqPresets.minDb, EqPresets.maxDb);
-    setState(() {
-      _editId = preset.id;
-      _editGains = next;
-    });
-    EqualizerService().applyCustomSnapshot(
-      bandGains: next,
-      bassBoostDb: 0,
-    );
-  }
-
-  Future<void> _selectPreset(String id) async {
-    setState(() {
-      _editId = null;
-      _editGains = null;
-    });
-    await context.read<ThemeProvider>().setEqPreset(id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final t = themeProvider.theme;
-    final radius = t.id == AppThemeId.silverChrome ? 10.0 : 14.0;
-    final selectedId = themeProvider.eqPreset;
-    final selected = EqPresets.byId(
-      EqPresets.drawerIds.contains(selectedId) ? selectedId : 'normal',
-    );
-    final locked = selected.id == 'mewati-bass';
-    final gains = _gainsFor(selected);
-
-    final apple = t.id == AppThemeId.silverChrome;
-    final panelTop = apple ? const Color(0xFF243528) : _panelTop;
-    final panelBottom = apple ? const Color(0xFF121A14) : _panelBottom;
-    final panelBorder = apple ? t.accent : const Color(0xFFFFC48A);
-
-    return Scaffold(
-      backgroundColor: t.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 16, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon:
-                        Icon(Icons.chevron_left, color: t.textPrimary, size: 28),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'SOUND EFFECT',
-                    style: TextStyle(
-                      color: t.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-                children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [panelTop, panelBottom],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                      border: Border.all(color: panelBorder, width: 1.2),
-                    ),
-                    child: Column(
-                      children: [
-                        AnimatedOpacity(
-                          duration: const Duration(milliseconds: 220),
-                          opacity: locked ? 0 : 1,
-                          child: Text(
-                            selected.label.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          height: 168,
-                          child: locked
-                              ? const _MewatiBassLock()
-                              : Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: List.generate(5, (i) {
-                                    return Expanded(
-                                      child: _WalkmanBand(
-                                        filled: barsFor(gains[i]),
-                                        fill: _barFill,
-                                        edge: _barEdge,
-                                        onChangeDb: (db) =>
-                                            _setBand(selected, i, db),
-                                      ),
-                                    );
-                                  }),
-                                ),
-                        ),
-                        const SizedBox(height: 10),
-                        AnimatedOpacity(
-                          duration: const Duration(milliseconds: 220),
-                          opacity: locked ? 0 : 1,
-                          child: Row(
-                            children: _labels
-                                .map(
-                                  (l) => Expanded(
-                                    child: Text(
-                                      l,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    'EQUALIZER',
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...EqPresets.drawerList.map((preset) {
-                    final active = selected.id == preset.id;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        onTap: () async {
-                          final was = selected.id;
-                          await _selectPreset(preset.id);
-                          if (!context.mounted) return;
-                          if (was == preset.id) return;
-                          if (await EqualizerService()
-                              .shouldHintHeadphones(preset.id)) {
-                            final messenger = ScaffoldMessenger.of(context);
-                            messenger.clearSnackBars();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text(EqPresets.headphoneHint),
-                                duration: Duration(seconds: 4),
-                              ),
-                            );
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(radius),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: active
-                                ? t.accent.withOpacity(0.18)
-                                : t.surface,
-                            borderRadius: BorderRadius.circular(radius),
-                            border: Border.all(
-                              color: active
-                                  ? t.accent
-                                  : t.textPrimary.withOpacity(0.16),
-                              width: active ? 1.6 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  preset.label,
-                                  style: TextStyle(
-                                    color: active ? t.accent : t.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: active
-                                      ? t.accent
-                                      : t.textPrimary.withOpacity(0.28),
-                                  boxShadow: active
-                                      ? [
-                                          BoxShadow(
-                                            color: t.accent.withOpacity(0.7),
-                                            blurRadius: 8,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WalkmanBand extends StatelessWidget {
-  final int filled;
-  final Color fill;
-  final Color edge;
-  final ValueChanged<double> onChangeDb;
-
-  const _WalkmanBand({
-    required this.filled,
-    required this.fill,
-    required this.edge,
-    required this.onChangeDb,
-  });
-
-  double _dbFromLocalY(double localY, double height) {
-    final t = (1.0 - (localY / height)).clamp(0.0, 1.0);
-    return EqPresets.minDb + t * (EqPresets.maxDb - EqPresets.minDb);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (d) =>
-                onChangeDb(_dbFromLocalY(d.localPosition.dy, box.maxHeight)),
-            onVerticalDragUpdate: (d) =>
-                onChangeDb(_dbFromLocalY(d.localPosition.dy, box.maxHeight)),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: List.generate(filled, (i) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 2.2),
-                  height: 5.6,
-                  decoration: BoxDecoration(
-                    color: fill,
-                    borderRadius: BorderRadius.circular(1.5),
-                    border:
-                        Border.all(color: edge.withOpacity(0.7), width: 0.4),
-                  ),
-                );
-              }),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _MewatiBassLock extends StatefulWidget {
-  const _MewatiBassLock();
-
-  @override
-  State<_MewatiBassLock> createState() => _MewatiBassLockState();
-}
-
-class _MewatiBassLockState extends State<_MewatiBassLock>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  StreamSubscription<double>? _sub;
-  double _energy = 0;
-  double _target = 0;
-  int _lastEventMs = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
-    _pulse.addListener(_tick);
-    _sub = BassEnergy.stream.listen((v) {
-      _target = v;
-      _lastEventMs = DateTime.now().millisecondsSinceEpoch;
-    });
-  }
-
-  void _tick() {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastEventMs > 90) {
-      _target *= 0.86;
-    }
-    _energy += (_target - _energy) * 0.38;
-    if (_energy < 0.004) _energy = 0;
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    _pulse.removeListener(_tick);
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (context, _) {
-        return LayoutBuilder(
-          builder: (context, box) {
-            final maxRByWidth = box.maxWidth / 2 - 6;
-            final maxRByHeight = (box.maxHeight / 2 - 6) / 0.80;
-            final maxR = math.min(maxRByWidth, maxRByHeight);
-            final hub = maxR * 0.32 * 2 * 0.82;
-
-            return CustomPaint(
-              painter: _SpeakerConePainter(energy: _energy),
-              child: Center(
-                child: SizedBox(
-                  width: hub,
-                  height: hub * 0.80,
-                  child: const FittedBox(
-                    fit: BoxFit.contain,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'MEWATI',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                            height: 1.05,
-                          ),
-                        ),
-                        Text(
-                          'BASS™',
-                          style: TextStyle(
-                            color: Color(0xFFF3D59A),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.4,
-                            height: 1.05,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _SpeakerConePainter extends CustomPainter {
+/// Exact match of the locked EQ preview:
+/// gray bg, gold blob + "Mewati Bass™", gold crescent moons.
+/// Levels: 0 / 2 / 3 / 4 from [energy].
+class MewatiBassEqVisual extends StatelessWidget {
   final double energy;
 
-  _SpeakerConePainter({required this.energy});
+  const MewatiBassEqVisual({super.key, required this.energy});
 
-  static const double _tilt = 0.80;
-  static const Color _gold = Color(0xFFF3D59A);
-  static const Color _goldDeep = Color(0xFFC9A15C);
-  static const Color _dark = Color(0xFF12100C);
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: MewatiBassEqPainter(energy: energy),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class MewatiBassEqPainter extends CustomPainter {
+  final double energy;
+
+  MewatiBassEqPainter({required this.energy});
+
+  static const _gold = Color(0xFFD4A017);
+  static const _gray = Color(0xFFB8B8B8);
+  static const _ink = Color(0xFF1A1208);
+
+  static const _dists = [0.508, 0.675, 0.851, 1.010];
+  static const _rads = [0.374, 0.506, 0.660, 0.836];
+  static const _cutOff = 0.22;
+  static const _cutR = 0.93;
+  static const _blob = 0.40;
+
+  /// Locked bass pop pattern:
+  /// gap → 0 (sirf gola), min → 2, medium → 3, medium+ → 4.
+  /// 4→2 drops the outer two; positions stay fixed (no traveling waves).
+  static int level(double e) {
+    if (e < 0.07) return 0;
+    if (e < 0.38) return 2;
+    if (e < 0.48) return 3;
+    return 4;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pulse = energy.clamp(0.0, 1.0);
     final c = Offset(size.width / 2, size.height / 2);
-    final maxRByWidth = size.width / 2 - 6;
-    final maxRByHeight = (size.height / 2 - 6) / _tilt;
-    final maxR = math.min(maxRByWidth, maxRByHeight);
+    canvas.drawRect(Offset.zero & size, Paint()..color = _gray);
 
-    Rect ovalRect(double r) => Rect.fromCenter(
-          center: c,
-          width: r * 2,
-          height: r * 2 * _tilt,
-        );
+    final maxR = math.min(size.width, size.height) / 2 - 4;
+    final r = maxR * _blob;
+    final n = level(energy.clamp(0.0, 1.0));
+    final moon = Paint()..color = _gold;
 
-    canvas.drawOval(
-      ovalRect(maxR),
-      Paint()
-        ..shader = RadialGradient(
-          colors: [_dark.withOpacity(0.97), const Color(0xFF07060A)],
-        ).createShader(ovalRect(maxR)),
-    );
-
-    canvas.drawOval(
-      ovalRect(maxR * 0.97),
-      Paint()
-        ..color = _gold.withOpacity(0.85)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2,
-    );
-
-    const pleatFractions = [0.85, 0.71, 0.58, 0.46, 0.35];
-    for (var i = 0; i < pleatFractions.length; i++) {
-      final excursion = 0.02 + i * 0.014;
-      final r = maxR * (pleatFractions[i] + excursion * pulse);
-      final shade =
-          (i.isEven ? _goldDeep : _gold).withOpacity(0.28 + 0.42 * pulse);
-      canvas.drawOval(
-        ovalRect(r),
-        Paint()
-          ..color = shade
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6,
-      );
+    for (var i = 0; i < n; i++) {
+      final dist = maxR * _dists[i];
+      final rad = maxR * _rads[i];
+      canvas.drawPath(_crescent(c, dist, rad, left: true), moon);
+      canvas.drawPath(_crescent(c, dist, rad, left: false), moon);
     }
 
-    canvas.drawOval(
-      ovalRect(maxR),
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.35, -0.6),
-          radius: 0.55,
-          colors: [
-            Colors.white.withOpacity(0.09 + 0.06 * pulse),
-            Colors.transparent,
-          ],
-        ).createShader(ovalRect(maxR)),
-    );
+    canvas.drawCircle(c, r, Paint()..color = _gold);
 
-    final hubR = maxR * (0.32 + 0.03 * pulse);
-    canvas.drawOval(
-      ovalRect(hubR),
-      Paint()
-        ..shader = RadialGradient(
-          colors: [const Color(0xFF1C1912), _dark],
-        ).createShader(ovalRect(hubR)),
-    );
-    canvas.drawOval(
-      ovalRect(hubR),
-      Paint()
-        ..color = _gold.withOpacity(0.70 + 0.30 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
-    );
+    final label = TextPainter(
+      text: TextSpan(
+        text: 'Mewati\nBass™',
+        style: TextStyle(
+          color: _ink,
+          fontSize: r * 0.28,
+          fontWeight: FontWeight.w800,
+          height: 1.05,
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, Offset(c.dx - label.width / 2, c.dy - label.height / 2));
+  }
+
+  Path _crescent(Offset blob, double dist, double rad, {required bool left}) {
+    final dir = left ? -1.0 : 1.0;
+    final moonC = Offset(blob.dx + dir * dist, blob.dy);
+    final cutC = Offset(moonC.dx - dir * rad * _cutOff, blob.dy);
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addOval(Rect.fromCircle(center: moonC, radius: rad))
+      ..addOval(Rect.fromCircle(center: cutC, radius: rad * _cutR));
   }
 
   @override
-  bool shouldRepaint(covariant _SpeakerConePainter oldDelegate) =>
+  bool shouldRepaint(covariant MewatiBassEqPainter oldDelegate) =>
       oldDelegate.energy != energy;
 }
