@@ -142,6 +142,7 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
@@ -177,7 +178,7 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                         SizedBox(
                           height: locked ? 220 : 168,
                           child: locked
-                              ? const _MewatiBassLock()
+                              ? _MewatiBassLock(background: panelBottom)
                               : Row(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: List.generate(5, (i) {
@@ -369,7 +370,9 @@ class _WalkmanBand extends StatelessWidget {
 }
 
 class _MewatiBassLock extends StatefulWidget {
-  const _MewatiBassLock();
+  final Color background;
+
+  const _MewatiBassLock({required this.background});
 
   @override
   State<_MewatiBassLock> createState() => _MewatiBassLockState();
@@ -419,7 +422,7 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        return MewatiBassEqVisual(energy: _energy);
+        return MewatiBassEqVisual(energy: _energy, background: widget.background);
       },
     );
   }
