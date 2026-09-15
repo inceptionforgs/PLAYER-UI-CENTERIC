@@ -141,12 +141,10 @@ class NowPlayingActions extends StatelessWidget {
         isDownloading: isDownloading,
         isTimerActive: isTimerActive,
         isLiked: isLiked,
-        isShuffleOn: isShuffleOn,
         likeCount: likeCount,
         favoritesProvider: favoritesProvider,
         downloadsProvider: downloadsProvider,
         likesProvider: likesProvider,
-        playerProvider: playerProvider,
       );
     }
 
@@ -297,12 +295,10 @@ class NowPlayingActions extends StatelessWidget {
     required bool isDownloading,
     required bool isTimerActive,
     required bool isLiked,
-    required bool isShuffleOn,
     required int likeCount,
     required FavoritesProvider favoritesProvider,
     required DownloadsProvider downloadsProvider,
     required LikesProvider likesProvider,
-    required PlayerProvider playerProvider,
   }) {
     final muted = t.textPrimary.withOpacity(0.85);
     return Row(
@@ -319,7 +315,7 @@ class NowPlayingActions extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(right: 4),
           child: MewatiBassButton(
-            size: 34,
+            size: 52,
             active: context.watch<ThemeProvider>().mewatiBassOn,
             onPressed: () => _toggleMewatiBass(context),
           ),
@@ -339,11 +335,9 @@ class NowPlayingActions extends StatelessWidget {
             t: t,
             song: song,
             isLiked: isLiked,
-            isShuffleOn: isShuffleOn,
             isTimerActive: isTimerActive,
             likeCount: likeCount,
             likesProvider: likesProvider,
-            playerProvider: playerProvider,
           ),
         ),
       ],
@@ -416,11 +410,9 @@ class NowPlayingActions extends StatelessWidget {
     required dynamic t,
     required Song song,
     required bool isLiked,
-    required bool isShuffleOn,
     required bool isTimerActive,
     required int likeCount,
     required LikesProvider likesProvider,
-    required PlayerProvider playerProvider,
   }) {
     showGeneralDialog<void>(
       context: context,
@@ -472,15 +464,6 @@ class NowPlayingActions extends StatelessWidget {
                       onTap: () {
                         Navigator.pop(sheet);
                         _toggleLike(context, likesProvider, song.id);
-                      },
-                    ),
-                    item(
-                      icon: Icons.shuffle,
-                      iconColor: isShuffleOn ? t.accent : t.textPrimary,
-                      label: isShuffleOn ? 'Shuffle on' : 'Shuffle',
-                      onTap: () {
-                        Navigator.pop(sheet);
-                        playerProvider.toggleShuffle();
                       },
                     ),
                     item(
