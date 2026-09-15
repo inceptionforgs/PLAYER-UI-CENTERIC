@@ -81,6 +81,9 @@ class PlayerService {
       }
     });
     _playingSubscription = _player.playingStream.listen(_onPlayingChanged);
+    _player.shuffleModeEnabledStream.listen((on) {
+      _shuffleMode = on;
+    });
     _processingSubscription = _player.processingStateStream.listen((state) {
       if (state == ProcessingState.ready && _player.playing) {
         _playSegmentStart ??= DateTime.now();
