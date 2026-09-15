@@ -12,6 +12,7 @@ import '../models/song.dart';
 import 'debug_log_service.dart';
 import 'downloads_service.dart';
 import 'equalizer_service.dart';
+import 'listen_ping_service.dart';
 import 'songs_service.dart';
 
 class PlayerService {
@@ -311,6 +312,9 @@ class PlayerService {
       _playSegmentStart = DateTime.now();
       _armPlayCountTimer();
     }
+    if (_player.playing) {
+      unawaited(ListenPingService().ping(song));
+    }
   }
 
   void _onPlayingChanged(bool playing) {
@@ -320,6 +324,11 @@ class PlayerService {
       _armPlayCountTimer();
     } else {
       _pausePlayCountClock();
+    }
+    if (playing) {
+      unawaited(ListenPingService().start(currentSong));
+    } else {
+      ListenPingService().stop();
     }
   }
 
@@ -482,6 +491,7 @@ class PlayerService {
   }
 
   void dispose() {
+    ListenPingService().stop();
     _fadeTimer?.cancel();
     _playCountTimer?.cancel();
     _internalIndexSubscription?.cancel();
