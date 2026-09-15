@@ -27,6 +27,8 @@ class PlayerProvider extends ChangeNotifier {
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription<int?>? _currentIndexSubscription;
   StreamSubscription<SystemVolumeEvent>? _systemVolSubscription;
+  StreamSubscription<bool>? _shuffleSubscription;
+  StreamSubscription<LoopMode>? _loopSubscription;
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -88,6 +90,13 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
         }
       }
+    });
+    _shuffleSubscription =
+        _playerService.player.shuffleModeEnabledStream.listen((_) {
+      notifyListeners();
+    });
+    _loopSubscription = _playerService.player.loopModeStream.listen((_) {
+      notifyListeners();
     });
   }
 
@@ -203,6 +212,8 @@ class PlayerProvider extends ChangeNotifier {
     _durationSubscription?.cancel();
     _currentIndexSubscription?.cancel();
     _systemVolSubscription?.cancel();
+    _shuffleSubscription?.cancel();
+    _loopSubscription?.cancel();
     positionNotifier.dispose();
     durationNotifier.dispose();
     volumeNotifier.dispose();
