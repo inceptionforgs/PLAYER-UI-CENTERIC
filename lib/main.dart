@@ -22,6 +22,9 @@ Future<void> main() async {
     debugPrint('Optional .env not loaded: $e');
   }
 
+  // MUST complete before runApp / AudioPlayer() so Android Auto binds
+  // to the same player instance that actually plays audio.
+  await _initJustAudioBackground();
   await _initSupabase();
 
   final downloadsProvider = DownloadsProvider();
@@ -40,7 +43,6 @@ Future<void> main() async {
 Future<void> _initializeRest(DownloadsProvider downloadsProvider) async {
   try {
     await Future.wait<void>([
-      _initJustAudioBackground(),
       _initLocalCache(),
       _initDownloads(downloadsProvider),
       _initSentry(),
@@ -52,15 +54,15 @@ Future<void> _initializeRest(DownloadsProvider downloadsProvider) async {
 }
 
 Future<void> _initJustAudioBackground() async {
-  try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.mewatitune.player.channel.audio',
-      androidNotificationChannelName: 'Mewati Music Player Playback',
-      androidNotificationOngoing: true,
-    ).timeout(const Duration(seconds: 8));
-  } catch (e) {
-    debugPrint('JustAudioBackground.init failed/timed out: $e');
-  }
+  await JustAudioBackground.init(
+    androidNotificationChannelId: 'com.mewatitune.player.channel.audio',
+    androidNotificationChannelName: 'Mewati Music Player Playback',
+    androidNotificationOngoing: true,
+    androidStopForegroundOnPause: true,
+    androidBrowsableRootExtras: const {
+      'android.media.browse.SEARCH_SUPPORTED': true,
+    },
+  );
 }
 
 Future<void> _initSupabase() async {
