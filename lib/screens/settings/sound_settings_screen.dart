@@ -20,8 +20,10 @@ class SoundSettingsScreen extends StatefulWidget {
 class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
   static const _panelTop = Color(0xFFE67A2E);
   static const _panelBottom = Color(0xFFC45A16);
+
   static const _barFill = Color(0xFFF3D59A);
   static const _barEdge = Color(0xFFE8C56E);
+
   static const _labels = [
     '100Hz',
     '300Hz',
@@ -30,12 +32,23 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
     '10kHz',
   ];
 
+  // IMPORTANT:
+  // Both Normal EQ and Mewati Bass now live inside the exact same
+  // outer visual frame. This prevents the settings panel from jumping
+  // when switching presets.
+  static const double _visualizerFrameHeight = 220.0;
+
+  // Normal EQ keeps its original internal visual height.
+  // It is placed at the bottom of the fixed 220px frame.
+  static const double _normalEqHeight = 168.0;
+
   String? _editId;
   List<double>? _editGains;
 
   static List<double> visualGains(EqPreset p) {
     if (!p.advanced) {
       final g = p.gains;
+
       return [
         g.isNotEmpty ? g[0] : 0,
         g.length > 1 ? g[1] : 0,
@@ -44,7 +57,9 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
         g.length > 4 ? g[4] : 0,
       ];
     }
+
     final g = p.gains;
+
     final v = <double>[
       g.length > 1 ? g[1] : 0,
       g.length > 3 ? g[3] : 0,
@@ -52,32 +67,64 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
       g.length > 7 ? g[7] : 0,
       g.length > 9 ? g[9] : 0,
     ];
-    v[0] = (v[0] + p.truBass * 12).clamp(EqPresets.minDb, EqPresets.maxDb);
-    v[1] = (v[1] + p.truBass * 8).clamp(EqPresets.minDb, EqPresets.maxDb);
-    v[3] = (v[3] + p.truTreble * 6).clamp(EqPresets.minDb, EqPresets.maxDb);
+
+    v[0] = (v[0] + p.truBass * 12)
+        .clamp(EqPresets.minDb, EqPresets.maxDb);
+
+    v[1] = (v[1] + p.truBass * 8)
+        .clamp(EqPresets.minDb, EqPresets.maxDb);
+
+    v[3] = (v[3] + p.truTreble * 6)
+        .clamp(EqPresets.minDb, EqPresets.maxDb);
+
     v[4] = (v[4] + p.air * 0.6 + p.truTreble * 10)
         .clamp(EqPresets.minDb, EqPresets.maxDb);
+
     return v;
   }
 
   static int barsFor(double db) {
-    return (((db + 15) / 30) * 18 + 2).round().clamp(2, 20);
+    return (((db + 15) / 30) * 18 + 2)
+        .round()
+        .clamp(2, 20);
   }
 
   List<double> _gainsFor(EqPreset p) {
-    if (p.id == 'mewati-bass') return visualGains(p);
-    if (_editId == p.id && _editGains != null) return _editGains!;
+    if (p.id == 'mewati-bass') {
+      return visualGains(p);
+    }
+
+    if (_editId == p.id && _editGains != null) {
+      return _editGains!;
+    }
+
     return visualGains(p);
   }
 
-  void _setBand(EqPreset preset, int index, double db) {
-    if (preset.id == 'mewati-bass') return;
-    final next = List<double>.from(_gainsFor(preset));
-    next[index] = db.clamp(EqPresets.minDb, EqPresets.maxDb);
+  void _setBand(
+    EqPreset preset,
+    int index,
+    double db,
+  ) {
+    // Mewati Bass is a locked preset.
+    if (preset.id == 'mewati-bass') {
+      return;
+    }
+
+    final next = List<double>.from(
+      _gainsFor(preset),
+    );
+
+    next[index] = db.clamp(
+      EqPresets.minDb,
+      EqPresets.maxDb,
+    );
+
     setState(() {
       _editId = preset.id;
       _editGains = next;
     });
+
     EqualizerService().applyCustomSnapshot(
       bandGains: next,
       bassBoostDb: 0,
@@ -89,6 +136,7 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
       _editId = null;
       _editGains = null;
     });
+
     await context.read<ThemeProvider>().setEqPreset(id);
   }
 
@@ -96,18 +144,35 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final t = themeProvider.theme;
-    final radius = t.id == AppThemeId.silverChrome ? 10.0 : 14.0;
+
+    final radius =
+        t.id == AppThemeId.silverChrome ? 10.0 : 14.0;
+
     final selectedId = themeProvider.eqPreset;
+
     final selected = EqPresets.byId(
-      EqPresets.drawerIds.contains(selectedId) ? selectedId : 'normal',
+      EqPresets.drawerIds.contains(selectedId)
+          ? selectedId
+          : 'normal',
     );
+
     final locked = selected.id == 'mewati-bass';
     final gains = _gainsFor(selected);
 
-    final apple = t.id == AppThemeId.silverChrome;
-    final panelTop = apple ? const Color(0xFF243528) : _panelTop;
-    final panelBottom = apple ? const Color(0xFF121A14) : _panelBottom;
-    final panelBorder = apple ? t.accent : const Color(0xFFFFC48A);
+    final apple =
+        t.id == AppThemeId.silverChrome;
+
+    final panelTop = apple
+        ? const Color(0xFF243528)
+        : _panelTop;
+
+    final panelBottom = apple
+        ? const Color(0xFF121A14)
+        : _panelBottom;
+
+    final panelBorder = apple
+        ? t.accent
+        : const Color(0xFFFFC48A);
 
     return Scaffold(
       backgroundColor: t.background,
@@ -115,13 +180,22 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 16, 8),
+              padding: const EdgeInsets.fromLTRB(
+                10,
+                8,
+                16,
+                8,
+              ),
               child: Row(
                 children: [
                   IconButton(
-                    icon:
-                        Icon(Icons.chevron_left, color: t.textPrimary, size: 28),
-                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(
+                      Icons.chevron_left,
+                      color: t.textPrimary,
+                      size: 28,
+                    ),
+                    onPressed: () =>
+                        Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -136,33 +210,60 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                 ],
               ),
             ),
+
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+                padding: const EdgeInsets.fromLTRB(
+                  18,
+                  4,
+                  18,
+                  28,
+                ),
                 children: [
                   Container(
-                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+                    padding: const EdgeInsets.fromLTRB(
+                      14,
+                      18,
+                      14,
+                      14,
+                    ),
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius:
+                          BorderRadius.circular(16),
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [panelTop, panelBottom],
+                        colors: [
+                          panelTop,
+                          panelBottom,
+                        ],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.35),
+                          color:
+                              Colors.black.withOpacity(0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 8),
                         ),
                       ],
-                      border: Border.all(color: panelBorder, width: 1.2),
+                      border: Border.all(
+                        color: panelBorder,
+                        width: 1.2,
+                      ),
                     ),
                     child: Column(
                       children: [
+                        // --------------------------------------------------
+                        // PRESET TITLE
+                        //
+                        // Height is naturally reserved even when hidden.
+                        // Therefore title disappearance itself does not
+                        // collapse the layout.
+                        // --------------------------------------------------
                         AnimatedOpacity(
-                          duration: const Duration(milliseconds: 220),
+                          duration:
+                              const Duration(milliseconds: 220),
                           opacity: locked ? 0 : 1,
                           child: Text(
                             selected.label.toUpperCase(),
@@ -174,29 +275,79 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                             ),
                           ),
                         ),
+
                         const SizedBox(height: 14),
+
+                        // --------------------------------------------------
+                        // FIXED VISUALIZER FRAME
+                        //
+                        // NEVER changes height when switching between
+                        // Mewati Bass and Normal.
+                        //
+                        // Old:
+                        //   locked ? 220 : 168
+                        //
+                        // New:
+                        //   always 220
+                        // --------------------------------------------------
                         SizedBox(
-                          height: locked ? 220 : 168,
+                          height: _visualizerFrameHeight,
                           child: locked
-                              ? _MewatiBassLock(background: panelBottom)
-                              : Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: List.generate(5, (i) {
-                                    return Expanded(
-                                      child: _WalkmanBand(
-                                        filled: barsFor(gains[i]),
-                                        fill: _barFill,
-                                        edge: _barEdge,
-                                        onChangeDb: (db) =>
-                                            _setBand(selected, i, db),
+                              ? _MewatiBassLock(
+                                  background: panelBottom,
+                                )
+                              : Align(
+                                  alignment:
+                                      Alignment.bottomCenter,
+                                  child: SizedBox(
+                                    height: _normalEqHeight,
+                                    width: double.infinity,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children:
+                                          List.generate(
+                                        5,
+                                        (i) {
+                                          return Expanded(
+                                            child:
+                                                _WalkmanBand(
+                                              filled:
+                                                  barsFor(
+                                                gains[i],
+                                              ),
+                                              fill:
+                                                  _barFill,
+                                              edge:
+                                                  _barEdge,
+                                              onChangeDb:
+                                                  (db) =>
+                                                      _setBand(
+                                                selected,
+                                                i,
+                                                db,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    );
-                                  }),
+                                    ),
+                                  ),
                                 ),
                         ),
+
                         const SizedBox(height: 10),
+
+                        // --------------------------------------------------
+                        // FREQUENCY LABELS
+                        //
+                        // Space remains reserved while Mewati Bass is
+                        // selected, so switching presets cannot move
+                        // everything below the visualizer.
+                        // --------------------------------------------------
                         AnimatedOpacity(
-                          duration: const Duration(milliseconds: 220),
+                          duration:
+                              const Duration(milliseconds: 220),
                           opacity: locked ? 0 : 1,
                           child: Row(
                             children: _labels
@@ -204,11 +355,14 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                                   (l) => Expanded(
                                     child: Text(
                                       l,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
+                                      textAlign:
+                                          TextAlign.center,
+                                      style:
+                                          const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight:
+                                            FontWeight.w800,
                                       ),
                                     ),
                                   ),
@@ -219,7 +373,9 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 22),
+
                   Text(
                     'EQUALIZER',
                     style: TextStyle(
@@ -229,84 +385,128 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
                       letterSpacing: 1.2,
                     ),
                   ),
+
                   const SizedBox(height: 10),
-                  ...EqPresets.drawerList.map((preset) {
-                    final active = selected.id == preset.id;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        onTap: () async {
-                          final was = selected.id;
-                          await _selectPreset(preset.id);
-                          if (!context.mounted) return;
-                          if (was == preset.id) return;
-                          if (await EqualizerService()
-                              .shouldHintHeadphones(preset.id)) {
-                            final messenger = ScaffoldMessenger.of(context);
-                            messenger.clearSnackBars();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text(EqPresets.headphoneHint),
-                                duration: Duration(seconds: 4),
-                              ),
+
+                  ...EqPresets.drawerList.map(
+                    (preset) {
+                      final active =
+                          selected.id == preset.id;
+
+                      return Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: 8),
+                        child: InkWell(
+                          onTap: () async {
+                            final was = selected.id;
+
+                            await _selectPreset(
+                              preset.id,
                             );
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(radius),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: active
-                                ? t.accent.withOpacity(0.18)
-                                : t.surface,
-                            borderRadius: BorderRadius.circular(radius),
-                            border: Border.all(
-                              color: active
-                                  ? t.accent
-                                  : t.textPrimary.withOpacity(0.16),
-                              width: active ? 1.6 : 1,
+
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            if (was == preset.id) {
+                              return;
+                            }
+
+                            if (await EqualizerService()
+                                .shouldHintHeadphones(
+                              preset.id,
+                            )) {
+                              final messenger =
+                                  ScaffoldMessenger.of(
+                                context,
+                              );
+
+                              messenger.clearSnackBars();
+
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    EqPresets.headphoneHint,
+                                  ),
+                                  duration:
+                                      Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          },
+                          borderRadius:
+                              BorderRadius.circular(radius),
+                          child: Container(
+                            width: double.infinity,
+                            padding:
+                                const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  preset.label,
-                                  style: TextStyle(
-                                    color: active ? t.accent : t.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? t.accent.withOpacity(0.18)
+                                  : t.surface,
+                              borderRadius:
+                                  BorderRadius.circular(radius),
+                              border: Border.all(
+                                color: active
+                                    ? t.accent
+                                    : t.textPrimary
+                                        .withOpacity(0.16),
+                                width:
+                                    active ? 1.6 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    preset.label,
+                                    style: TextStyle(
+                                      color: active
+                                          ? t.accent
+                                          : t.textPrimary,
+                                      fontWeight:
+                                          FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: active
-                                      ? t.accent
-                                      : t.textPrimary.withOpacity(0.28),
-                                  boxShadow: active
-                                      ? [
-                                          BoxShadow(
-                                            color: t.accent.withOpacity(0.7),
-                                            blurRadius: 8,
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration:
+                                      BoxDecoration(
+                                    shape:
+                                        BoxShape.circle,
+                                    color: active
+                                        ? t.accent
+                                        : t.textPrimary
+                                            .withOpacity(
+                                            0.28,
                                           ),
-                                        ]
-                                      : null,
+                                    boxShadow: active
+                                        ? [
+                                            BoxShadow(
+                                              color: t
+                                                  .accent
+                                                  .withOpacity(
+                                                0.7,
+                                              ),
+                                              blurRadius: 8,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -316,6 +516,10 @@ class _SoundSettingsScreenState extends State<SoundSettingsScreen> {
     );
   }
 }
+
+// ============================================================================
+// NORMAL EQ BAND
+// ============================================================================
 
 class _WalkmanBand extends StatelessWidget {
   final int filled;
@@ -330,37 +534,72 @@ class _WalkmanBand extends StatelessWidget {
     required this.onChangeDb,
   });
 
-  double _dbFromLocalY(double localY, double height) {
-    final t = (1.0 - (localY / height)).clamp(0.0, 1.0);
-    return EqPresets.minDb + t * (EqPresets.maxDb - EqPresets.minDb);
+  double _dbFromLocalY(
+    double localY,
+    double height,
+  ) {
+    final t = (1.0 - (localY / height))
+        .clamp(0.0, 1.0);
+
+    return EqPresets.minDb +
+        t *
+            (EqPresets.maxDb -
+                EqPresets.minDb);
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 6),
       child: LayoutBuilder(
         builder: (context, box) {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (d) =>
-                onChangeDb(_dbFromLocalY(d.localPosition.dy, box.maxHeight)),
-            onVerticalDragUpdate: (d) =>
-                onChangeDb(_dbFromLocalY(d.localPosition.dy, box.maxHeight)),
+
+            onTapDown: (d) {
+              onChangeDb(
+                _dbFromLocalY(
+                  d.localPosition.dy,
+                  box.maxHeight,
+                ),
+              );
+            },
+
+            onVerticalDragUpdate: (d) {
+              onChangeDb(
+                _dbFromLocalY(
+                  d.localPosition.dy,
+                  box.maxHeight,
+                ),
+              );
+            },
+
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: List.generate(filled, (i) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 2.2),
-                  height: 5.6,
-                  decoration: BoxDecoration(
-                    color: fill,
-                    borderRadius: BorderRadius.circular(1.5),
-                    border:
-                        Border.all(color: edge.withOpacity(0.7), width: 0.4),
-                  ),
-                );
-              }),
+              mainAxisAlignment:
+                  MainAxisAlignment.end,
+              children: List.generate(
+                filled,
+                (i) {
+                  return Container(
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 2.2,
+                    ),
+                    height: 5.6,
+                    decoration: BoxDecoration(
+                      color: fill,
+                      borderRadius:
+                          BorderRadius.circular(1.5),
+                      border: Border.all(
+                        color:
+                            edge.withOpacity(0.7),
+                        width: 0.4,
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           );
         },
@@ -369,51 +608,78 @@ class _WalkmanBand extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// MEWATI BASS LOCKED VISUAL
+// ============================================================================
+
 class _MewatiBassLock extends StatefulWidget {
   final Color background;
 
-  const _MewatiBassLock({required this.background});
+  const _MewatiBassLock({
+    required this.background,
+  });
 
   @override
-  State<_MewatiBassLock> createState() => _MewatiBassLockState();
+  State<_MewatiBassLock> createState() =>
+      _MewatiBassLockState();
 }
 
-class _MewatiBassLockState extends State<_MewatiBassLock>
+class _MewatiBassLockState
+    extends State<_MewatiBassLock>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
+
   StreamSubscription<double>? _sub;
+
   double _energy = 0;
   double _target = 0;
+
   int _lastEventMs = 0;
 
   @override
   void initState() {
     super.initState();
+
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration:
+          const Duration(milliseconds: 1600),
     )..repeat();
+
     _pulse.addListener(_tick);
-    _sub = BassEnergy.stream.listen((v) {
-      _target = v;
-      _lastEventMs = DateTime.now().millisecondsSinceEpoch;
-    });
+
+    _sub = BassEnergy.stream.listen(
+      (v) {
+        _target = v;
+        _lastEventMs =
+            DateTime.now().millisecondsSinceEpoch;
+      },
+    );
   }
 
   void _tick() {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now =
+        DateTime.now().millisecondsSinceEpoch;
+
     if (now - _lastEventMs > 90) {
       _target *= 0.55;
     }
-    _energy += (_target - _energy) * 0.55;
-    if (_energy < 0.05) _energy = 0;
+
+    _energy +=
+        (_target - _energy) * 0.55;
+
+    if (_energy < 0.05) {
+      _energy = 0;
+    }
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+
     _pulse.removeListener(_tick);
     _pulse.dispose();
+
     super.dispose();
   }
 
@@ -422,7 +688,10 @@ class _MewatiBassLockState extends State<_MewatiBassLock>
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        return MewatiBassEqVisual(energy: _energy, background: widget.background);
+        return MewatiBassEqVisual(
+          energy: _energy,
+          background: widget.background,
+        );
       },
     );
   }
