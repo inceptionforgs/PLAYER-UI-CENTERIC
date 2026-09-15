@@ -3,17 +3,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 /// Exact match of the locked EQ preview:
-/// gray bg, gold blob + "Mewati Bass™", gold crescent moons.
+/// theme-coloured bg, gold blob + "Mewati Bass™", gold crescent moons.
 /// Levels: 0 / 2 / 3 / 4 from [energy].
 class MewatiBassEqVisual extends StatelessWidget {
   final double energy;
+  final Color? background;
 
-  const MewatiBassEqVisual({super.key, required this.energy});
+  const MewatiBassEqVisual({super.key, required this.energy, this.background});
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: MewatiBassEqPainter(energy: energy),
+      painter: MewatiBassEqPainter(energy: energy, background: background),
       child: const SizedBox.expand(),
     );
   }
@@ -21,10 +22,11 @@ class MewatiBassEqVisual extends StatelessWidget {
 
 class MewatiBassEqPainter extends CustomPainter {
   final double energy;
+  final Color? background;
 
-  MewatiBassEqPainter({required this.energy});
+  MewatiBassEqPainter({required this.energy, this.background});
 
-  static const _gold = Color(0xFFD4A017);
+  static const _gold = Color(0xFFD4AF37);
   static const _gray = Color(0xFFB8B8B8);
   static const _ink = Color(0xFF1A1208);
 
@@ -46,8 +48,13 @@ class MewatiBassEqPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Clip to bounds so the crescents can never bleed past the panel
+    // edges, regardless of screen size or the fixed _dists/_rads ratios.
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     final c = Offset(size.width / 2, size.height / 2);
-    canvas.drawRect(Offset.zero & size, Paint()..color = _gray);
+    canvas.drawRect(Offset.zero & size, Paint()..color = background ?? _gray);
 
     final maxR = math.min(size.width, size.height) / 2 - 4;
     final r = maxR * _blob;
@@ -77,6 +84,7 @@ class MewatiBassEqPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     label.paint(canvas, Offset(c.dx - label.width / 2, c.dy - label.height / 2));
+    canvas.restore();
   }
 
   Path _crescent(Offset blob, double dist, double rad, {required bool left}) {
@@ -91,5 +99,5 @@ class MewatiBassEqPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MewatiBassEqPainter oldDelegate) =>
-      oldDelegate.energy != energy;
+      oldDelegate.energy != energy || oldDelegate.background != background;
 }
