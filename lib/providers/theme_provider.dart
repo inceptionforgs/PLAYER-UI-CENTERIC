@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_themes.dart';
 import '../services/equalizer_service.dart';
@@ -113,6 +114,7 @@ class ThemeProvider extends ChangeNotifier {
     }
 
     await EqualizerService().applyPreset(preset);
+    JustAudioBackground.notifyMewatiBassChanged();
   }
 
   Future<void> toggleMewatiBass() async {
