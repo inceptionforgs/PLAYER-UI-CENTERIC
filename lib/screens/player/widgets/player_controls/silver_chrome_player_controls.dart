@@ -120,22 +120,29 @@ class SilverChromePlayerControls extends StatelessWidget {
     final shuffleOn = playerProvider.shuffleMode;
     final loop = playerProvider.loopMode;
 
+    // spaceEvenly divides the row's free horizontal space into equal
+    // chunks: edge→Shuffle, Shuffle→Previous, Previous→Play, Play→Next,
+    // Next→Repeat, and Repeat→edge are all the same width, regardless
+    // of screen size. Fixed-size boxes on every button keep each gap
+    // a true equal gap (not skewed by different icon/button sizes).
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Expanded(
-          child: Center(
-            child: Semantics(
-              button: true,
-              label: shuffleOn ? 'Shuffle on' : 'Shuffle',
-              child: IconButton(
-                icon: Icon(
-                  Icons.shuffle,
-                  color: shuffleOn ? t.accent : t.textPrimary,
-                  size: 28,
-                ),
-                tooltip: shuffleOn ? 'Shuffle on' : 'Shuffle',
-                onPressed: () => playerProvider.toggleShuffle(),
+        Semantics(
+          button: true,
+          label: shuffleOn ? 'Shuffle on' : 'Shuffle',
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: IconButton(
+              icon: Icon(
+                Icons.shuffle,
+                color: shuffleOn ? t.accent : t.textPrimary,
+                size: 28,
               ),
+              padding: EdgeInsets.zero,
+              tooltip: shuffleOn ? 'Shuffle on' : 'Shuffle',
+              onPressed: () => playerProvider.toggleShuffle(),
             ),
           ),
         ),
@@ -152,9 +159,7 @@ class SilverChromePlayerControls extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 24),
         SilverChromePlayButton(accent: accent),
-        const SizedBox(width: 24),
         Semantics(
           button: true,
           label: 'Next',
@@ -168,28 +173,29 @@ class SilverChromePlayerControls extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
-          child: Center(
-            child: Semantics(
-              button: true,
-              label: loop == LoopMode.one
+        Semantics(
+          button: true,
+          label: loop == LoopMode.one
+              ? 'Repeat one'
+              : loop == LoopMode.all
+                  ? 'Repeat all'
+                  : 'Repeat off',
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: IconButton(
+              icon: Icon(
+                loop == LoopMode.one ? Icons.repeat_one : Icons.repeat,
+                color: loop != LoopMode.off ? t.accent : t.textPrimary,
+                size: 28,
+              ),
+              padding: EdgeInsets.zero,
+              tooltip: loop == LoopMode.one
                   ? 'Repeat one'
                   : loop == LoopMode.all
                       ? 'Repeat all'
-                      : 'Repeat off',
-              child: IconButton(
-                icon: Icon(
-                  loop == LoopMode.one ? Icons.repeat_one : Icons.repeat,
-                  color: loop != LoopMode.off ? t.accent : t.textPrimary,
-                  size: 28,
-                ),
-                tooltip: loop == LoopMode.one
-                    ? 'Repeat one'
-                    : loop == LoopMode.all
-                        ? 'Repeat all'
-                        : 'Repeat',
-                onPressed: () => _cycleRepeat(playerProvider),
-              ),
+                      : 'Repeat',
+              onPressed: () => _cycleRepeat(playerProvider),
             ),
           ),
         ),
